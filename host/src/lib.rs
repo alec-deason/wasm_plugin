@@ -73,7 +73,6 @@ impl WASMPlugin {
         for c in &view[memory_idx as usize..memory_idx as usize + result_len as usize] {
             buff.push(c.get());
         }
-        println!("{:?}", buff);
         Ok(bincode::deserialize(&buff)?)
     }
 
