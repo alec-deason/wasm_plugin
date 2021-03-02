@@ -59,19 +59,21 @@ impl WASMPlugin {
             panic!();
         };
         let memory = self.instance.exports.get_memory("memory").unwrap();
-        let view = memory.view();
-
         let message = bincode::serialize(argument)?;
         let len = message.len() as i32;
-        for (src, dst) in message.iter().zip(&view[memory_idx as usize..memory_idx as usize + len as usize]) {
-            dst.set(*src);
+
+        unsafe {
+            let data = memory.data_unchecked_mut();
+            data[memory_idx as usize..memory_idx as usize + len as usize].copy_from_slice(&message);
         }
+
         let result_len = f.native::<(), i32>()?
         .call()?;
 
-        let mut buff: Vec<u8> = Vec::with_capacity(result_len as usize);
-        for c in &view[memory_idx as usize..memory_idx as usize + result_len as usize] {
-            buff.push(c.get());
+        let mut buff: Vec<u8> = vec![0; result_len as usize];
+        unsafe {
+            let data = memory.data_unchecked();
+            buff.copy_from_slice(&data[memory_idx as usize..memory_idx as usize + result_len as usize]);
         }
         Ok(bincode::deserialize(&buff)?)
     }
@@ -92,14 +94,14 @@ impl WASMPlugin {
             panic!();
         };
         let memory = self.instance.exports.get_memory("memory").unwrap();
-        let view = memory.view();
 
         let result_len = f.native::<(), i32>()?
         .call()?;
 
-        let mut buff: Vec<u8> = Vec::with_capacity(result_len as usize);
-        for c in &view[memory_idx as usize..memory_idx as usize + result_len as usize] {
-            buff.push(c.get());
+        let mut buff: Vec<u8> = vec![0; result_len as usize];
+        unsafe {
+            let data = memory.data_unchecked();
+            buff.copy_from_slice(&data[memory_idx as usize..memory_idx as usize + result_len as usize]);
         }
         Ok(bincode::deserialize(&buff)?)
     }
