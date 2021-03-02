@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use wasmer::{imports, MemoryView, Instance, Value, WasmerEnv, Memory, LazyInit, Store, Module, Function};
+use wasmer::{
+    imports, MemoryView, Instance, Value, WasmerEnv,
+    Memory, LazyInit, Store, Module, Function, Global
+};
 use anyhow::Result;
 
 
@@ -49,21 +52,28 @@ impl WASMPlugin {
             .get_function(fn_name)
             .unwrap();
 
+        let buffer = self.instance.exports.get::<Global>("MESSAGE_BUFFER").unwrap().get();
+        let memory_idx = if let Value::I32(memory_idx) = buffer {
+            memory_idx
+        } else {
+            panic!();
+        };
         let memory = self.instance.exports.get_memory("memory").unwrap();
-        let view: MemoryView<u8> = memory.view();
+        let view = memory.view();
 
         let message = bincode::serialize(argument)?;
         let len = message.len() as i32;
-        for (src, dst) in message.iter().zip(&view[..len as usize]) {
+        for (src, dst) in message.iter().zip(&view[memory_idx as usize..memory_idx as usize + len as usize]) {
             dst.set(*src);
         }
-        let result_len = f.native::<(i32, i32, i32), i32>()?
-        .call(0, len, 2048)?;
+        let result_len = f.native::<(), i32>()?
+        .call()?;
 
         let mut buff: Vec<u8> = Vec::with_capacity(result_len as usize);
-        for c in &view[0..result_len as usize] {
+        for c in &view[memory_idx as usize..memory_idx as usize + result_len as usize] {
             buff.push(c.get());
         }
+        println!("{:?}", buff);
         Ok(bincode::deserialize(&buff)?)
     }
 
@@ -76,14 +86,20 @@ impl WASMPlugin {
             .get_function(fn_name)
             .unwrap();
 
+        let buffer = self.instance.exports.get::<Global>("MESSAGE_BUFFER").unwrap().get();
+        let memory_idx = if let Value::I32(memory_idx) = buffer {
+            memory_idx
+        } else {
+            panic!();
+        };
         let memory = self.instance.exports.get_memory("memory").unwrap();
-        let view: MemoryView<u8> = memory.view();
+        let view = memory.view();
 
-        let result_len = f.native::<(i32, i32), i32>()?
-        .call(0, 2048)?;
+        let result_len = f.native::<(), i32>()?
+        .call()?;
 
         let mut buff: Vec<u8> = Vec::with_capacity(result_len as usize);
-        for c in &view[0..result_len as usize] {
+        for c in &view[memory_idx as usize..memory_idx as usize + result_len as usize] {
             buff.push(c.get());
         }
         Ok(bincode::deserialize(&buff)?)
