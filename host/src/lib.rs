@@ -5,7 +5,7 @@ use wasmer::{
     WasmerEnv,
 };
 
-mod error;
+mod errors;
 
 #[derive(Clone)]
 pub struct WasmPlugin {
@@ -19,7 +19,7 @@ pub struct Env {
 }
 
 impl WasmPlugin {
-    pub fn load(path: impl AsRef<Path>) -> error::Result<Self> {
+    pub fn load(path: impl AsRef<Path>) -> errors::Result<Self> {
         let wasm_src = std::fs::read(path)?;
         let store = Store::default();
         let import_object = imports! {
@@ -35,7 +35,7 @@ impl WasmPlugin {
         &mut self,
         fn_name: &str,
         args: &Args,
-    ) -> error::Result<ReturnType>
+    ) -> errors::Result<ReturnType>
     where
         Args: serde::Serialize,
         ReturnType: serde::de::DeserializeOwned + Clone,
@@ -52,7 +52,8 @@ impl WasmPlugin {
             panic!();
         };
         let memory = self.instance.exports.get_memory("memory").unwrap();
-        let message = bincode::serialize(args)?;
+        // TODO: I don't really want to expose bincode in the public API but there may be cases where this obscures useful information about the actual error.
+        let message = bincode::serialize(args).map_err(|_| errors::WasmPluginError::SerializationError)?;
         let len = message.len() as i32;
 
         unsafe {
@@ -63,7 +64,7 @@ impl WasmPlugin {
         self.call_function(fn_name)
     }
 
-    pub fn call_function<ReturnType>(&mut self, fn_name: &str) -> error::Result<ReturnType>
+    pub fn call_function<ReturnType>(&mut self, fn_name: &str) -> errors::Result<ReturnType>
     where
         ReturnType: serde::de::DeserializeOwned + Clone,
     {
@@ -91,7 +92,7 @@ impl WasmPlugin {
                 &data[memory_idx as usize..memory_idx as usize + result_len as usize],
             );
         }
-        Ok(bincode::deserialize(&buff)?)
+        Ok(bincode::deserialize(&buff).map_err(|_| errors::WasmPluginError::DeserializationError)?)
     }
 }
 
