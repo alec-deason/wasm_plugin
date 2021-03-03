@@ -1,3 +1,6 @@
+<img src="https://docs.rs/wasm_plugin_host/badge.svg" alt="wasm_plugin_host">
+
+
 A low-ish level tool for easily hosting WASM based plugins.
 
 

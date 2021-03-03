@@ -1,3 +1,5 @@
+<img src="https://docs.rs/wasm_plugin_guest/badge.svg" alt="wasm_plugin_guest">
+
 A low-ish level tool for easily writing WASM based plugins to be hosted by
 wasm_plugin_host.
 
