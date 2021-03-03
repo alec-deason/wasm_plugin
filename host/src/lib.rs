@@ -73,10 +73,9 @@ use wasmer::{
 pub mod errors;
 
 /// A loaded plugin
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WasmPlugin {
-    /// The Wasmer runtime that will execute this plugin when functions are called
-    pub instance: Instance,
+    instance: Instance,
 }
 
 #[derive(WasmerEnv, Clone, Default, Debug)]
