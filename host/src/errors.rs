@@ -1,9 +1,20 @@
+/// Error returned by WasmPlugin when loading plugins or calling functions.
 pub enum WasmPluginError {
+    /// A problem compiling the plugin's WASM source
     WasmerCompileError(wasmer::CompileError),
+    /// A problem instantiating the Wasmer runtime
     WasmerInstantiationError(wasmer::InstantiationError),
+    /// A problem interacting with the plugin
     WasmerRuntimeError(wasmer::RuntimeError),
+    /// A problem loading the plugin's source from disk
     IoError(std::io::Error),
+    /// A problems serializing an argument to send to one of the plugin's
+    /// functions.
     SerializationError,
+    /// A problem deserializing the return value of a call to one of the
+    /// plugin's functions. This almost always represents a type mismatch
+    /// between the callsite in the host and the function signature in the
+    /// glugin.
     DeserializationError,
 }
 

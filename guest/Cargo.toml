@@ -1,9 +1,21 @@
 [package]
-name = "guest"
+name = "wasm_plugin_guest"
 version = "0.1.0"
 authors = ["Alec Deason <alec@tinycountry.com>"]
 edition = "2018"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/alec-deason/wasm_plugin/guest"
+description = "A low-ish level tool for easily writing WASM based plugins"
+keywords = ["WASM", "plugin"]
+categories = ["game-development", "wasm"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["inject_getrandom"]
+inject_getrandom = ["getrandom"]
+
 
 [dependencies]
+getrandom = { version = "0.2.2", features = ["custom"], optional = true }
+bincode = "1"
+serde = "1"

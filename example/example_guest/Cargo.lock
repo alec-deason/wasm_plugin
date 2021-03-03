@@ -26,9 +26,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 name = "example_guest"
 version = "0.1.0"
 dependencies = [
- "bincode",
- "getrandom",
- "guest",
+ "wasm_plugin_guest",
 ]
 
 [[package]]
@@ -41,10 +39,6 @@ dependencies = [
  "libc",
  "wasi",
 ]
-
-[[package]]
-name = "guest"
-version = "0.1.0"
 
 [[package]]
 name = "libc"
@@ -63,3 +57,12 @@ name = "wasi"
 version = "0.10.2+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
+
+[[package]]
+name = "wasm_plugin_guest"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "getrandom",
+ "serde",
+]
