@@ -14,7 +14,7 @@ pub enum WasmPluginError {
     /// A problem deserializing the return value of a call to one of the
     /// plugin's functions. This almost always represents a type mismatch
     /// between the callsite in the host and the function signature in the
-    /// glugin.
+    /// plugin.
     DeserializationError,
 }
 
