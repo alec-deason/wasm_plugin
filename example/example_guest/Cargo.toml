@@ -3,6 +3,7 @@ name = "example_guest"
 version = "0.1.0"
 authors = ["Alec Deason <wasm_plugins@tinycountry.com>"]
 edition = "2018"
+publish = false
 
 [lib]
 crate-type = ["cdylib"]

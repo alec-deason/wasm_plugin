@@ -34,3 +34,7 @@ fn local_hello() -> String {
 }
 wasm_plugin_guest::export_plugin_function_with_no_input(hello, local_hello);
 ```
+
+## API Stability
+
+I am not currently guaranteeing any stability, expect all releases to include breaking changes.
