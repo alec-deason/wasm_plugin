@@ -10,6 +10,7 @@ The goal of wasm_plugin is to make communicating across the host-plugin
 boundary as simple and idiomatic as possible while being unopinionated
  about how you actually use the plugin.
  
+Plugins should be written using [wasm_plugin_guest](https://crates.io/crates/wasm_plugin_guest)
  
 Loading a plugin is as simple as reading the .wasm file off disk.
 

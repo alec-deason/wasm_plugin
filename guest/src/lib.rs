@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest/0.1.1")]
 #![deny(missing_docs)]
 
 //! A low-ish level tool for easily writing WASM based plugins to be hosted by
@@ -8,6 +8,7 @@
 //! boundary as simple and idiomatic as possible while being unopinionated
 //! about how you actually use the plugin.
 //!
+//! Plugins are meant to be run using [wasm_plugin_host](https://crates.io/crates/wasm_plugin_host)
 
 pub use wasm_plugin_guest_derive::export_function;
 

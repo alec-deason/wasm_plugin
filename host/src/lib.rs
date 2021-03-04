@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.1")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.2")]
 #![deny(missing_docs)]
 
 //! A low-ish level tool for easily hosting WASM based plugins.
@@ -6,6 +6,8 @@
 //! The goal of wasm_plugin is to make communicating across the host-plugin
 //! boundary as simple and idiomatic as possible while being unopinionated
 //!  about how you actually use the plugin.
+//!
+//! Plugins should be written using [wasm_plugin_guest](https://crates.io/crates/wasm_plugin_guest)
 //!
 //! Loading a plugin is as simple as reading the .wasm file off disk.
 //!

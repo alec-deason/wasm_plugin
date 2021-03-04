@@ -9,13 +9,15 @@ The goal of wasm_plugin is to make communicating across the host-plugin
 boundary as simple and idiomatic as possible while being unopinionated
 about how you actually use the plugin.
 
-Exporting a function is just a matter of wrapping it in a macro:
+Plugins are meant to be run using [wasm_plugin_host](https://crates.io/crates/wasm_plugin_host)
+
+Exporting a function is just a matter of adding an attribute.
 
 ```rust
-fn local_hello() -> String {
+#[wasm_plugin_guest::export_function]
+fn hello() -> String {
     "Hello, host!".to_string()
 }
-wasm_plugin_guest::export_plugin_function_with_no_input(hello, local_hello);
 ```
 
 ## API Stability
