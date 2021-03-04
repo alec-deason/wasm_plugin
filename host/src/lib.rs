@@ -162,7 +162,11 @@ impl WasmPlugin {
     where
         ReturnType: serde::de::DeserializeOwned + Clone,
     {
-        let f = self.instance.exports.get_function(&format!("wasm_plugin_exported__{}", fn_name)).unwrap();
+        let f = self
+            .instance
+            .exports
+            .get_function(&format!("wasm_plugin_exported__{}", fn_name))
+            .unwrap();
 
         let buffer = self
             .instance

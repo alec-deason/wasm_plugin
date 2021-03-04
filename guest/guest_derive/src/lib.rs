@@ -5,8 +5,8 @@
 
 use proc_macro::TokenStream;
 extern crate proc_macro;
+use quote::{format_ident, quote};
 use syn;
-use quote::{quote, format_ident};
 
 /// Builds an extern function which will handle serializing and
 /// deserializing of arguments and return values of the function it is applied
