@@ -1,0 +1,19 @@
+[package]
+name = "wasm_plugin_guest_derive"
+version = "0.1.1"
+authors = ["Alec Deason <wasm_plugin@tinycountry.com>"]
+edition = "2018"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/alec-deason/wasm_plugin/tree/main/guest/guest_derive"
+description = "A low-ish level tool for easily writing WASM based plugins"
+keywords = ["WASM", "plugin"]
+categories = ["game-development", "wasm"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1", features = ["full"] }
+proc-macro2 = "1.0.24"
+quote = "1"

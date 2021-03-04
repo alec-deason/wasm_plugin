@@ -16,6 +16,7 @@ inject_getrandom = ["getrandom"]
 
 
 [dependencies]
+wasm_plugin_guest_derive = { path = "./guest_derive" }
 getrandom = { version = "0.2.2", features = ["custom"], optional = true }
 bincode = "1"
 serde = "1"
