@@ -31,3 +31,7 @@ Or it takes a single serializable argument and returns a single result:
 let message = Message::default();
 let response: ResultType = plugin.call_function_with_argument("function_name", &message)?;
 ```
+
+## API Stability
+
+I am not currently guaranteeing any stability, expect all releases to include breaking changes.
