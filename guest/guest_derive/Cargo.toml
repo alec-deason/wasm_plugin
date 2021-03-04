@@ -4,7 +4,6 @@ version = "0.1.1"
 authors = ["Alec Deason <wasm_plugin@tinycountry.com>"]
 edition = "2018"
 license = "MIT"
-readme = "README.md"
 repository = "https://github.com/alec-deason/wasm_plugin/tree/main/guest/guest_derive"
 description = "A low-ish level tool for easily writing WASM based plugins"
 keywords = ["WASM", "plugin"]
