@@ -9,30 +9,10 @@
 //! about how you actually use the plugin.
 //!
 
+pub use wasm_plugin_guest_derive::export_function;
+
 #[no_mangle]
 static mut MESSAGE_BUFFER: [u8; 1024 * 10] = [0; 1024 * 10];
-
-#[cfg(feature = "inject_getrandom")]
-mod getrandom_shim {
-    use getrandom::register_custom_getrandom;
-
-    use getrandom::Error;
-
-    extern "C" {
-        fn __getrandom(ptr: i32, len: i32);
-    }
-
-    #[allow(clippy::unnecessary_wraps)]
-    fn external_getrandom(buf: &mut [u8]) -> Result<(), Error> {
-        let len = buf.len();
-        let ptr = buf.as_ptr();
-        unsafe {
-            __getrandom(ptr as i32, len as i32);
-        }
-        Ok(())
-    }
-    register_custom_getrandom!(external_getrandom);
-}
 
 /// Read a message from the buffer used to communicate with the host. You should
 /// never need to call this directly.
@@ -54,30 +34,24 @@ where
     len as i32
 }
 
-/// Export a function with no arguments to the plugin host
-#[macro_export]
-macro_rules! export_plugin_function_with_no_input {
-    ($name:ident, $function:path) => {
-        const _: () = {
-            #[no_mangle]
-            pub extern "C" fn $name() -> i32 {
-                wasm_plugin_guest::write_message(&$function())
-            }
-        };
-    };
-}
+#[cfg(feature = "inject_getrandom")]
+mod getrandom_shim {
+    use getrandom::register_custom_getrandom;
 
-/// Export a function with a single argument to the plugin host
-#[macro_export]
-macro_rules! export_plugin_function_with_input_message {
-    ($name:ident, $function:path) => {
-        const _: () = {
-            #[no_mangle]
-            pub extern "C" fn $name() -> i32 {
-                let message = wasm_plugin_guest::read_message();
+    use getrandom::Error;
 
-                wasm_plugin_guest::write_message(&$function(message))
-            }
-        };
-    };
+    extern "C" {
+        fn __getrandom(ptr: i32, len: i32);
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    fn external_getrandom(buf: &mut [u8]) -> Result<(), Error> {
+        let len = buf.len();
+        let ptr = buf.as_ptr();
+        unsafe {
+            __getrandom(ptr as i32, len as i32);
+        }
+        Ok(())
+    }
+    register_custom_getrandom!(external_getrandom);
 }
