@@ -1,9 +1,9 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest_derive/0.1.1")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest_derive/0.1.2")]
 #![deny(missing_docs)]
 
 //! This crate provides attribute macros used by [wasm_plugin_guest](https://crates.io/crates/wasm_plugin_guest)
 
-use proc_macro::{TokenStream, Span};
+use proc_macro::TokenStream;
 extern crate proc_macro;
 use syn;
 use quote::{quote, format_ident};
@@ -37,6 +37,7 @@ fn impl_function_export(ast: &syn::ItemFn) -> TokenStream {
         let mut argument_types = quote!();
         let mut call = quote!();
         for (i, arg) in ast.sig.inputs.iter().enumerate() {
+            let i = syn::Index::from(i);
             call = quote!(#call message.#i,);
             if let syn::FnArg::Typed(t) = arg {
                 let ty = &t.ty;
