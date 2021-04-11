@@ -210,7 +210,7 @@ impl WasmPlugin {
             .instance
             .exports
             .get_function(&format!("wasm_plugin_exported__{}", fn_name))
-            .unwrap();
+            .expect(&format!("Unable to find function {}", fn_name));
 
 
         let result_len = f.native::<(), i32>()?.call()?;
@@ -242,7 +242,7 @@ impl WasmPlugin {
         ReturnType: nanoserde::DeJson,
     {
         let buff = self.call_function_raw(fn_name)?;
-        println!("{:?}", buff);
+
         Ok(nanoserde::DeJson::deserialize_json(&String::from_utf8(buff)?)
             .map_err(|_| errors::WasmPluginError::DeserializationError)?)
     }

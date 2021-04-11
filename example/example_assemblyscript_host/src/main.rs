@@ -7,7 +7,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let response: String = plugin.call_function("hello")?;
     println!("The guest says: '{}'", response);
 
-/*
     let message = "Hello, Guest!".to_string();
     let response: String = plugin.call_function_with_argument("echo", &message)?;
     println!(
@@ -21,7 +20,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "The guest's favorite integers (less that 2**32) are: '{:?}'",
         response
     );
-    */
 
     Ok(())
 }

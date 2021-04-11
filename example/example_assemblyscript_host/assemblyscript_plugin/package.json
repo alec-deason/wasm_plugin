@@ -12,7 +12,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@assemblyscript/loader": "^0.18.23"
+    "@assemblyscript/loader": "^0.18.23",
+    "assemblyscript-json": "^1.0.0"
   },
   "devDependencies": {
     "assemblyscript": "^0.18.23"
