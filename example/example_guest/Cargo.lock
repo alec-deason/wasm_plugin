@@ -95,7 +95,7 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 
 [[package]]
 name = "wasm_plugin_guest"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bincode",
  "getrandom",
@@ -105,7 +105,9 @@ dependencies = [
 
 [[package]]
 name = "wasm_plugin_guest_derive"
-version = "0.1.1"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f45a872c051f61c438778d3be91e0d342f384ba8eed3f66e65aa521f51840b4"
 dependencies = [
  "proc-macro2",
  "quote",

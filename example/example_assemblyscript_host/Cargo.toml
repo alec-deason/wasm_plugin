@@ -1,0 +1,9 @@
+[package]
+name = "example_host"
+version = "0.1.0"
+authors = ["Alec Deason <wasm_plugin@tinycountry.com>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+wasm_plugin_host = { path = "../../host", default-features = false, features = ["serialize_nanoserde_json"] }

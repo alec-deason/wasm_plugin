@@ -11,11 +11,14 @@ keywords = ["WASM", "plugin"]
 categories = ["game-development", "wasm"]
 
 [features]
-default = ["inject_getrandom"]
+default = ["inject_getrandom", "serialize_bincode"]
 inject_getrandom = ["getrandom"]
+serialize_bincode = ["bincode", "serde"]
+serialize_nanoserde_json = ["nanoserde"]
 
 [dependencies]
 wasmer = "1"
 getrandom = { version = "0.2", optional = true }
-serde = "1"
-bincode = "1"
+serde = { version = "1", optional = true }
+bincode = { version = "1", optional = true }
+nanoserde = { version = "0.1", optional = true }

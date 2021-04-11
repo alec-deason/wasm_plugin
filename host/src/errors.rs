@@ -16,6 +16,9 @@ pub enum WasmPluginError {
     /// between the callsite in the host and the function signature in the
     /// plugin.
     DeserializationError,
+    /// A problem decoding the utf8 sent by the plugin
+    #[cfg(feature = "serialize_nanoserde_json")]
+    FromUtf8Error(std::string::FromUtf8Error),
 }
 
 impl std::error::Error for WasmPluginError {}
@@ -36,6 +39,8 @@ impl core::fmt::Display for WasmPluginError {
 
             WasmPluginError::SerializationError => write!(f, "There was a problem serializing the argument to the function call"),
             WasmPluginError::DeserializationError=> write!(f, "There was a problem deserializing the value returned by the plugin function. This almost certainly means that the type at the call site does not match the type in the plugin's function signature."),
+            #[cfg(feature = "serialize_nanoserde_json")]
+            WasmPluginError::FromUtf8Error(e) => e.fmt(f),
         }
     }
 }
@@ -61,6 +66,13 @@ impl From<wasmer::InstantiationError> for WasmPluginError {
 impl From<wasmer::RuntimeError> for WasmPluginError {
     fn from(e: wasmer::RuntimeError) -> WasmPluginError {
         WasmPluginError::WasmerRuntimeError(e)
+    }
+}
+
+#[cfg(feature = "serialize_nanoserde_json")]
+impl From<std::string::FromUtf8Error> for WasmPluginError {
+    fn from(e: std::string::FromUtf8Error) -> WasmPluginError {
+        WasmPluginError::FromUtf8Error(e)
     }
 }
 
