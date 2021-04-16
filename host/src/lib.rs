@@ -1,5 +1,5 @@
 #![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.2")]
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 
 //! A low-ish level tool for easily hosting WASM based plugins.
 //!
@@ -64,15 +64,92 @@
 //! There is no reflection so you must know up front which functions
 //! a plugin exports and their signatures.
 
-use std::path::Path;
+use std::{
+    path::Path,
+};
 
 use wasmer::{
+    internals::{WithEnv, WithoutEnv},
     imports, Function, Global, Instance, LazyInit, Memory, MemoryView, Module, Store, Value,
-    WasmerEnv,
+    WasmerEnv, Exports, WasmTypeList,
 };
+pub use wasmer::{Extern, HostFunction};
 
 #[allow(missing_docs)]
 pub mod errors;
+
+pub struct WasmPluginBuilder {
+    module: Module,
+    store: Store,
+    env: Exports,
+}
+impl WasmPluginBuilder {
+    /// Load a plugin off disk and prepare it for use.
+    pub fn from_file(path: impl AsRef<Path>) -> errors::Result<Self> {
+        let source = std::fs::read(path)?;
+        Self::from_source(&source)
+    }
+
+    /// Load a plugin from WASM source and prepare it for use.
+    pub fn from_source(source: &[u8]) -> errors::Result<Self> {
+        let store = Store::default();
+        let module = Module::new(&store, source)?;
+        let mut env = wasmer::Exports::new();
+        env.insert("abort", Function::new_native(&store, |_: i32, _:i32, _:i32, _:i32| {}));
+        #[cfg(feature = "inject_getrandom")]
+        {
+            env.insert("__getrandom", Function::new_native_with_env(&store, Env::default(), getrandom_shim));
+        }
+
+        Ok(Self {
+            module,
+            store,
+            env,
+        })
+    }
+
+    fn import(mut self, name: impl Into<String>, value: impl Into<Extern>) -> Self {
+        self.env.insert(name, value);
+        self
+    }
+
+    pub fn import_function<F, Args, ReturnType>(mut self, name: impl Into<String>, value: F) -> Self
+    where
+        F: Fn(Args) -> ReturnType + Send + 'static,
+        ReturnType: serde::Serialize,
+        Args: serde::de::DeserializeOwned + Clone,
+    {
+        #[derive(WasmerEnv, Clone, Default)]
+        struct Env {
+            #[wasmer(export(name = "MESSAGE_BUFFER"))]
+            buffer: LazyInit<Global>,
+            #[wasmer(export)]
+            memory: LazyInit<Memory>,
+        }
+
+        let env = Env::default();
+        let wrapped = move |env: &Env, len: i32| {
+            let buffer = MessageBuffer {
+                buffer: unsafe { env.buffer.get_unchecked() }.get(),
+                memory: unsafe { env.memory.get_unchecked() },
+            };
+            let message = buffer.read_message(len as usize);
+            let result = value(bincode::deserialize(&message).unwrap());
+            let message = bincode::serialize(&result).unwrap();
+            buffer.write_message(&message)
+        };
+        let f = Function::new_native_with_env(&self.store, env, wrapped);
+        self.import(name, f)
+    }
+
+    pub fn finish(self) -> errors::Result<WasmPlugin> {
+        let mut import_object = wasmer::ImportObject::new();
+        import_object.register("env", self.env);
+        Ok(WasmPlugin {
+            instance: Instance::new(&self.module, &import_object)?,
+        })
+    }
+}
 
 /// A loaded plugin
 #[derive(Clone, Debug)]
@@ -86,62 +163,57 @@ struct Env {
     memory: LazyInit<Memory>,
 }
 
-impl WasmPlugin {
-    /// Load a plugin from WASM source and prepare it for use.
-    pub fn new(source: &[u8]) -> errors::Result<Self> {
-        let store = Store::default();
-        let import_object;
-        #[cfg(feature = "inject_getrandom")]
-        {
-            import_object = imports! {
-                "env" => { "__getrandom" => Function::new_native_with_env(&store, Env::default(), getrandom_shim), },
-            };
-        }
-        #[cfg(not(feature = "inject_getrandom"))]
-        {
-            fn fake_abort(env:&Env, a: i32, b: i32, c: i32, d: i32) { }
-            import_object = imports! {
-                "env" => {
-                    "abort" => Function::new_native_with_env(&store, Env::default(), fake_abort),
-                },
-            };
-        }
-        let module = Module::new(&store, source)?;
+struct MessageBuffer<'a> {
+    buffer: Value,
+    memory: &'a Memory
+}
 
-        let instance = Instance::new(&module, &import_object)?;
-        Ok(Self { instance })
-    }
-
-    /// Load a plugin off disk and prepare it for use.
-    pub fn load(path: impl AsRef<Path>) -> errors::Result<Self> {
-        let source = std::fs::read(path)?;
-        WasmPlugin::new(&source)
-    }
-
-    fn message_buffer(&self) -> Value {
-        self
-            .instance
-            .exports
-            .get::<Global>("MESSAGE_BUFFER")
-            .unwrap()
-            .get()
-    }
-
+impl<'a> MessageBuffer<'a> {
     fn write_message(&self, message: &[u8]) {
-        let buffer = self.message_buffer();
-        let memory_idx = if let Value::I32(memory_idx) = buffer {
+        let memory_idx = if let Value::I32(memory_idx) = self.buffer {
             memory_idx
         } else {
             panic!();
         };
-        let memory = self.instance.exports.get_memory("memory").unwrap();
         let len = message.len() as i32;
 
         unsafe {
-            let data = memory.data_unchecked_mut();
+            let data = self.memory.data_unchecked_mut();
             data[memory_idx as usize..memory_idx as usize + len as usize].copy_from_slice(&message);
         }
     }
+
+    fn read_message(&self, len: usize) -> Vec<u8> {
+        let memory_idx = if let Value::I32(memory_idx) = self.buffer {
+            memory_idx
+        } else {
+            panic!();
+        };
+        let mut buff: Vec<u8> = vec![0; len];
+        unsafe {
+            let data = self.memory.data_unchecked();
+            buff.copy_from_slice(
+                &data[memory_idx as usize..memory_idx as usize + len],
+            );
+        }
+        buff
+    }
+
+}
+
+impl WasmPlugin {
+    fn message_buffer(&self) -> errors::Result<MessageBuffer> {
+        Ok(MessageBuffer {
+            memory: self.instance.exports.get_memory("memory").unwrap(),
+            buffer: self
+                .instance
+                .exports
+                .get::<Global>("MESSAGE_BUFFER")
+                .unwrap()
+                .get()
+        })
+    }
+
 
     /// Call a function exported by the plugin with a single argument
     /// which will be serialized and sent to the plugin.
@@ -160,7 +232,7 @@ impl WasmPlugin {
     {
         let message =
             bincode::serialize(args).map_err(|_| errors::WasmPluginError::SerializationError)?;
-        self.write_message(&message);
+        self.message_buffer()?.write_message(&message);
 
         self.call_function(fn_name)
     }
@@ -187,24 +259,6 @@ impl WasmPlugin {
         self.call_function(fn_name)
     }
 
-    fn read_message(&self, len: usize) -> Vec<u8> {
-        let buffer = self.message_buffer();
-        let memory_idx = if let Value::I32(memory_idx) = buffer {
-            memory_idx
-        } else {
-            panic!();
-        };
-        let memory = self.instance.exports.get_memory("memory").unwrap();
-        let mut buff: Vec<u8> = vec![0; len];
-        unsafe {
-            let data = memory.data_unchecked();
-            buff.copy_from_slice(
-                &data[memory_idx as usize..memory_idx as usize + len],
-            );
-        }
-        buff
-    }
-
     fn call_function_raw(&mut self, fn_name: &str) -> errors::Result<Vec<u8>> {
         let f = self
             .instance
@@ -215,7 +269,7 @@ impl WasmPlugin {
 
         let result_len = f.native::<(), i32>()?.call()?;
 
-        Ok(self.read_message(result_len as usize))
+        Ok(self.message_buffer()?.read_message(result_len as usize))
     }
 
     /// Call a function exported by the plugin.

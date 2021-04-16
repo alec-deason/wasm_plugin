@@ -1,9 +1,12 @@
-use wasm_plugin_host::WasmPlugin;
+use wasm_plugin_host::WasmPluginBuilder;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut plugin = WasmPlugin::load(
+    let mut plugin = WasmPluginBuilder::from_file(
         "../example_guest/target/wasm32-unknown-unknown/release/example_guest.wasm",
-    )?;
+    )?.import_function("the_hosts_favorite_numbers", |arg: ()| {
+        println!("poop");
+    })
+    .finish()?;
     let response: String = plugin.call_function("hello")?;
     println!("The guest says: '{}'", response);
 
