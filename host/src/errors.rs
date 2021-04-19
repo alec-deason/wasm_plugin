@@ -6,6 +6,8 @@ pub enum WasmPluginError {
     WasmerInstantiationError(wasmer::InstantiationError),
     /// A problem interacting with the plugin
     WasmerRuntimeError(wasmer::RuntimeError),
+    /// A problem getting an export from the plugin
+    WasmerExportError(wasmer::ExportError),
     /// A problem loading the plugin's source from disk
     IoError(std::io::Error),
     /// A problems serializing an argument to send to one of the plugin's
@@ -35,6 +37,7 @@ impl core::fmt::Display for WasmPluginError {
             WasmPluginError::WasmerCompileError(e) => e.fmt(f),
             WasmPluginError::WasmerInstantiationError(e) => e.fmt(f),
             WasmPluginError::WasmerRuntimeError(e) => e.fmt(f),
+            WasmPluginError::WasmerExportError(e) => e.fmt(f),
             WasmPluginError::IoError(e) => e.fmt(f),
 
             WasmPluginError::SerializationError => write!(f, "There was a problem serializing the argument to the function call"),
@@ -66,6 +69,12 @@ impl From<wasmer::InstantiationError> for WasmPluginError {
 impl From<wasmer::RuntimeError> for WasmPluginError {
     fn from(e: wasmer::RuntimeError) -> WasmPluginError {
         WasmPluginError::WasmerRuntimeError(e)
+    }
+}
+
+impl From<wasmer::ExportError> for WasmPluginError {
+    fn from(e: wasmer::ExportError) -> WasmPluginError {
+        WasmPluginError::WasmerExportError(e)
     }
 }
 

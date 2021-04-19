@@ -1,5 +1,5 @@
 #![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.2")]
-//#![deny(missing_docs)]
+#![deny(missing_docs)]
 
 //! A low-ish level tool for easily hosting WASM based plugins.
 //!
@@ -64,14 +64,11 @@
 //! There is no reflection so you must know up front which functions
 //! a plugin exports and their signatures.
 
-use std::{
-    path::Path,
-};
+use std::path::Path;
 
 use wasmer::{
-    internals::{WithEnv, WithoutEnv},
-    imports, Function, Global, Instance, LazyInit, Memory, MemoryView, Module, Store, Value,
-    WasmerEnv, Exports, WasmTypeList,
+    Exports, Function, Global, Instance, LazyInit, Memory, MemoryView, Module, Store, Value,
+    WasmerEnv,
 };
 pub use wasmer::{Extern, HostFunction};
 
@@ -79,8 +76,9 @@ pub use wasmer::{Extern, HostFunction};
 pub mod errors;
 #[allow(missing_docs)]
 pub mod serialization;
-use serialization::{Serializable, Deserializable};
+use serialization::{Deserializable, Serializable};
 
+/// Constructs a WasmPlugin
 pub struct WasmPluginBuilder {
     module: Module,
     store: Store,
@@ -98,17 +96,19 @@ impl WasmPluginBuilder {
         let store = Store::default();
         let module = Module::new(&store, source)?;
         let mut env = wasmer::Exports::new();
-        env.insert("abort", Function::new_native(&store, |_: i32, _:i32, _:i32, _:i32| {}));
+        env.insert(
+            "abort",
+            Function::new_native(&store, |_: i32, _: i32, _: i32, _: i32| {}),
+        );
         #[cfg(feature = "inject_getrandom")]
         {
-            env.insert("__getrandom", Function::new_native_with_env(&store, Env::default(), getrandom_shim));
+            env.insert(
+                "__getrandom",
+                Function::new_native_with_env(&store, Env::default(), getrandom_shim),
+            );
         }
 
-        Ok(Self {
-            module,
-            store,
-            env,
-        })
+        Ok(Self { module, store, env })
     }
 
     fn import(mut self, name: impl ToString, value: impl Into<Extern>) -> Self {
@@ -117,8 +117,13 @@ impl WasmPluginBuilder {
         self
     }
 
-    pub fn import_function<Args, F: ImportableFn<Args> + Send + 'static>(self, name: impl ToString, value: F) -> Self
-    {
+    /// Import a function defined in the host into the guest. The function's
+    /// arguments and return type must all be serializable.
+    pub fn import_function<Args, F: ImportableFn<Args> + Send + 'static>(
+        self,
+        name: impl ToString,
+        value: F,
+    ) -> Self {
         #[derive(WasmerEnv, Clone, Default)]
         struct Env {
             #[wasmer(export(name = "MESSAGE_BUFFER"))]
@@ -135,7 +140,7 @@ impl WasmPluginBuilder {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_with_input(buffer, len as usize) as i32
+                    value.call_with_input(buffer, len as usize).unwrap() as i32
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             } else {
@@ -144,7 +149,7 @@ impl WasmPluginBuilder {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_with_input(buffer, len as usize);
+                    value.call_with_input(buffer, len as usize).unwrap();
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             };
@@ -156,7 +161,7 @@ impl WasmPluginBuilder {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_without_input(buffer) as i32
+                    value.call_without_input(buffer).unwrap() as i32
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             } else {
@@ -165,7 +170,7 @@ impl WasmPluginBuilder {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_without_input(buffer);
+                    value.call_without_input(buffer).unwrap();
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             };
@@ -173,6 +178,7 @@ impl WasmPluginBuilder {
         }
     }
 
+    /// Finalize the builder and create the WasmPlugin ready for use.
     pub fn finish(self) -> errors::Result<WasmPlugin> {
         let mut import_object = wasmer::ImportObject::new();
         import_object.register("env", self.env);
@@ -182,11 +188,17 @@ impl WasmPluginBuilder {
     }
 }
 
+/// A marker trait for Fn types who's arguments and return type can be
+/// serialized and are thus safe to import into a plugin;
 pub trait ImportableFn<ArgList> {
+    #[doc(hidden)]
     fn has_arg() -> bool;
+    #[doc(hidden)]
     fn has_return() -> bool;
-    fn call_with_input(&self, message_buffer: MessageBuffer, len: usize) -> usize;
-    fn call_without_input(&self, message_buffer: MessageBuffer) -> usize;
+    #[doc(hidden)]
+    fn call_with_input(&self, message_buffer: MessageBuffer, len: usize) -> errors::Result<usize>;
+    #[doc(hidden)]
+    fn call_without_input(&self, message_buffer: MessageBuffer) -> errors::Result<usize>;
 }
 
 impl<F, Args, ReturnType> ImportableFn<Args> for F
@@ -195,47 +207,59 @@ where
     Args: Deserializable,
     ReturnType: Serializable,
 {
-    fn has_arg() -> bool { true }
-    fn has_return() -> bool { std::mem::size_of::<ReturnType>() > 0 }
-    fn call_with_input(&self, message_buffer: MessageBuffer, len: usize) -> usize {
+    fn has_arg() -> bool {
+        true
+    }
+    fn has_return() -> bool {
+        std::mem::size_of::<ReturnType>() > 0
+    }
+    fn call_with_input(&self, message_buffer: MessageBuffer, len: usize) -> errors::Result<usize> {
         let message = message_buffer.read_message(len);
-        let result = self(Args::deserialize(&message));
+        let result = self(Args::deserialize(&message)?);
         if std::mem::size_of::<ReturnType>() > 0 {
             // No need to write anything for ZSTs
-            let message = result.serialize();
-            message_buffer.write_message(&message)
+            let message = result.serialize()?;
+            Ok(message_buffer.write_message(&message))
         } else {
-            0
+            Ok(0)
         }
     }
 
-    fn call_without_input(&self, _message_buffer: MessageBuffer) -> usize {
+    fn call_without_input(&self, _message_buffer: MessageBuffer) -> errors::Result<usize> {
         unimplemented!("Requires argument")
     }
 }
 
+#[doc(hidden)]
 pub enum NoArgs {}
-
 
 impl<F, ReturnType> ImportableFn<NoArgs> for F
 where
     F: Fn() -> ReturnType,
     ReturnType: Serializable,
 {
-    fn has_arg() -> bool { false }
-    fn has_return() -> bool { std::mem::size_of::<ReturnType>() > 0 }
-    fn call_with_input(&self, _message_buffer: MessageBuffer, _len: usize) -> usize {
+    fn has_arg() -> bool {
+        false
+    }
+    fn has_return() -> bool {
+        std::mem::size_of::<ReturnType>() > 0
+    }
+    fn call_with_input(
+        &self,
+        _message_buffer: MessageBuffer,
+        _len: usize,
+    ) -> errors::Result<usize> {
         unimplemented!("Must not supply argument")
     }
 
-    fn call_without_input(&self, message_buffer: MessageBuffer) -> usize {
+    fn call_without_input(&self, message_buffer: MessageBuffer) -> errors::Result<usize> {
         let result = self();
         if std::mem::size_of::<ReturnType>() > 0 {
             // No need to write anything for ZSTs
-            let message = result.serialize();
-            message_buffer.write_message(&message)
+            let message = result.serialize()?;
+            Ok(message_buffer.write_message(&message))
         } else {
-            0
+            Ok(0)
         }
     }
 }
@@ -252,9 +276,10 @@ struct Env {
     memory: LazyInit<Memory>,
 }
 
+#[doc(hidden)]
 pub struct MessageBuffer<'a> {
     buffer: Value,
-    memory: &'a Memory
+    memory: &'a Memory,
 }
 
 impl<'a> MessageBuffer<'a> {
@@ -282,28 +307,19 @@ impl<'a> MessageBuffer<'a> {
         let mut buff: Vec<u8> = vec![0; len];
         unsafe {
             let data = self.memory.data_unchecked();
-            buff.copy_from_slice(
-                &data[memory_idx as usize..memory_idx as usize + len],
-            );
+            buff.copy_from_slice(&data[memory_idx as usize..memory_idx as usize + len]);
         }
         buff
     }
-
 }
 
 impl WasmPlugin {
     fn message_buffer(&self) -> errors::Result<MessageBuffer> {
         Ok(MessageBuffer {
-            memory: self.instance.exports.get_memory("memory").unwrap(),
-            buffer: self
-                .instance
-                .exports
-                .get::<Global>("MESSAGE_BUFFER")
-                .unwrap()
-                .get()
+            memory: self.instance.exports.get_memory("memory")?,
+            buffer: self.instance.exports.get::<Global>("MESSAGE_BUFFER")?.get(),
         })
     }
-
 
     /// Call a function exported by the plugin with a single argument
     /// which will be serialized and sent to the plugin.
@@ -319,7 +335,7 @@ impl WasmPlugin {
         Args: Serializable,
         ReturnType: Deserializable,
     {
-        let message = args.serialize();
+        let message = args.serialize()?;
         self.message_buffer()?.write_message(&message);
 
         self.call_function(fn_name)
@@ -330,8 +346,7 @@ impl WasmPlugin {
             .instance
             .exports
             .get_function(&format!("wasm_plugin_exported__{}", fn_name))
-            .expect(&format!("Unable to find function {}", fn_name));
-
+            .unwrap_or_else(|_| panic!("Unable to find function {}", fn_name));
 
         let result_len = f.native::<(), i32>()?.call()?;
 
@@ -347,7 +362,7 @@ impl WasmPlugin {
         ReturnType: Deserializable,
     {
         let buff = self.call_function_raw(fn_name)?;
-        Ok(ReturnType::deserialize(&buff))
+        ReturnType::deserialize(&buff)
     }
 }
 
