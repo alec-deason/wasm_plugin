@@ -4,6 +4,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut plugin = WasmPluginBuilder::from_file(
         "./assemblyscript_plugin/build/optimized.wasm",
     )?
+    .import_function("please_capitalize_this", |mut s: String| {
+        s.make_ascii_uppercase();
+        s
+    })
     .finish()?;
     let response: String = plugin.call_function("hello")?;
     println!("The guest says: '{}'", response);
