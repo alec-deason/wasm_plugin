@@ -14,6 +14,7 @@ categories = ["game-development", "wasm"]
 default = ["inject_getrandom", "serialize_bincode"]
 inject_getrandom = ["getrandom"]
 serialize_bincode = ["bincode", "serde"]
+serialize_json = ["serde_json", "serde"]
 serialize_nanoserde_json = ["nanoserde"]
 
 [dependencies]
@@ -21,4 +22,5 @@ wasmer = "1"
 getrandom = { version = "0.2", optional = true }
 serde = { version = "1", optional = true }
 bincode = { version = "1", optional = true }
+serde_json = { version = "1", optional = true }
 nanoserde = { version = "0.1", optional = true }

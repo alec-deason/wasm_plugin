@@ -77,6 +77,9 @@ pub use wasmer::{Extern, HostFunction};
 
 #[allow(missing_docs)]
 pub mod errors;
+#[allow(missing_docs)]
+pub mod serialization;
+use serialization::{Serializable, Deserializable};
 
 pub struct WasmPluginBuilder {
     module: Module,
@@ -189,17 +192,17 @@ pub trait ImportableFn<ArgList> {
 impl<F, Args, ReturnType> ImportableFn<Args> for F
 where
     F: Fn(Args) -> ReturnType,
-    Args: serde::de::DeserializeOwned + Clone,
-    ReturnType: serde::Serialize,
+    Args: Deserializable,
+    ReturnType: Serializable,
 {
     fn has_arg() -> bool { true }
     fn has_return() -> bool { std::mem::size_of::<ReturnType>() > 0 }
     fn call_with_input(&self, message_buffer: MessageBuffer, len: usize) -> usize {
         let message = message_buffer.read_message(len);
-        let result = self(bincode::deserialize(&message).unwrap());
+        let result = self(Args::deserialize(&message));
         if std::mem::size_of::<ReturnType>() > 0 {
             // No need to write anything for ZSTs
-            let message = bincode::serialize(&result).unwrap();
+            let message = result.serialize();
             message_buffer.write_message(&message)
         } else {
             0
@@ -210,11 +213,14 @@ where
         unimplemented!("Requires argument")
     }
 }
+
 pub enum NoArgs {}
+
+
 impl<F, ReturnType> ImportableFn<NoArgs> for F
 where
     F: Fn() -> ReturnType,
-    ReturnType: serde::Serialize,
+    ReturnType: Serializable,
 {
     fn has_arg() -> bool { false }
     fn has_return() -> bool { std::mem::size_of::<ReturnType>() > 0 }
@@ -226,7 +232,7 @@ where
         let result = self();
         if std::mem::size_of::<ReturnType>() > 0 {
             // No need to write anything for ZSTs
-            let message = bincode::serialize(&result).unwrap();
+            let message = result.serialize();
             message_buffer.write_message(&message)
         } else {
             0
@@ -304,41 +310,17 @@ impl WasmPlugin {
     ///
     /// Deserialization of the return value depends on the type being known
     /// at the call site.
-    #[cfg(feature = "serialize_bincode")]
     pub fn call_function_with_argument<ReturnType, Args>(
         &mut self,
         fn_name: &str,
         args: &Args,
     ) -> errors::Result<ReturnType>
     where
-        Args: serde::Serialize,
-        ReturnType: serde::de::DeserializeOwned + Clone,
+        Args: Serializable,
+        ReturnType: Deserializable,
     {
-        let message =
-            bincode::serialize(args).map_err(|_| errors::WasmPluginError::SerializationError)?;
+        let message = args.serialize();
         self.message_buffer()?.write_message(&message);
-
-        self.call_function(fn_name)
-    }
-
-    /// Call a function exported by the plugin with a single argument
-    /// which will be serialized and sent to the plugin.
-    ///
-    /// Deserialization of the return value depends on the type being known
-    /// at the call site.
-    #[cfg(feature = "serialize_nanoserde_json")]
-    pub fn call_function_with_argument<ReturnType, Args>(
-        &mut self,
-        fn_name: &str,
-        args: &Args,
-    ) -> errors::Result<ReturnType>
-    where
-        Args: nanoserde::SerJson,
-        ReturnType: nanoserde::DeJson,
-    {
-        let message =
-            nanoserde::SerJson::serialize_json(args);
-        self.write_message(message.as_bytes());
 
         self.call_function(fn_name)
     }
@@ -360,29 +342,12 @@ impl WasmPlugin {
     ///
     /// Deserialization of the return value depends on the type being known
     /// at the call site.
-    #[cfg(feature = "serialize_bincode")]
     pub fn call_function<ReturnType>(&mut self, fn_name: &str) -> errors::Result<ReturnType>
     where
-        ReturnType: serde::de::DeserializeOwned + Clone,
+        ReturnType: Deserializable,
     {
         let buff = self.call_function_raw(fn_name)?;
-        Ok(bincode::deserialize(&buff)
-            .map_err(|_| errors::WasmPluginError::DeserializationError)?)
-    }
-
-    /// Call a function exported by the plugin.
-    ///
-    /// Deserialization of the return value depends on the type being known
-    /// at the call site.
-    #[cfg(feature = "serialize_nanoserde_json")]
-    pub fn call_function<ReturnType>(&mut self, fn_name: &str) -> errors::Result<ReturnType>
-    where
-        ReturnType: nanoserde::DeJson,
-    {
-        let buff = self.call_function_raw(fn_name)?;
-
-        Ok(nanoserde::DeJson::deserialize_json(&String::from_utf8(buff)?)
-            .map_err(|_| errors::WasmPluginError::DeserializationError)?)
+        Ok(ReturnType::deserialize(&buff))
     }
 }
 

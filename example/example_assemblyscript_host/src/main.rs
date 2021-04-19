@@ -1,9 +1,10 @@
-use wasm_plugin_host::WasmPlugin;
+use wasm_plugin_host::WasmPluginBuilder;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut plugin = WasmPlugin::load(
+    let mut plugin = WasmPluginBuilder::from_file(
         "./assemblyscript_plugin/build/optimized.wasm",
-    )?;
+    )?
+    .finish()?;
     let response: String = plugin.call_function("hello")?;
     println!("The guest says: '{}'", response);
 
