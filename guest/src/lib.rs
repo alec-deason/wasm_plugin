@@ -1,5 +1,5 @@
 #![doc(html_root_url = "https://docs.rs/wasm_plugin_guest/0.1.2")]
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 
 //! A low-ish level tool for easily writing WASM based plugins to be hosted by
 //! wasm_plugin_host.
@@ -10,7 +10,7 @@
 //!
 //! Plugins are meant to be run using [wasm_plugin_host](https://crates.io/crates/wasm_plugin_host)
 
-pub use wasm_plugin_guest_derive::export_function;
+pub use wasm_plugin_guest_derive::{export_function, import_functions};
 
 #[no_mangle]
 static mut MESSAGE_BUFFER: [u8; 1024 * 10] = [0; 1024 * 10];

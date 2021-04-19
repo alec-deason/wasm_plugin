@@ -92,15 +92,16 @@ version = "0.1.2"
 dependencies = [
  "bincode",
  "getrandom",
+ "proc-macro2",
+ "quote",
  "serde",
+ "syn",
  "wasm_plugin_guest_derive",
 ]
 
 [[package]]
 name = "wasm_plugin_guest_derive"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43c251717eacdc01bb5772f6e743c47a9bbe2d871f38168a3bf088c8691f307e"
+version = "0.1.2"
 dependencies = [
  "proc-macro2",
  "quote",

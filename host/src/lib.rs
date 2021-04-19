@@ -108,16 +108,13 @@ impl WasmPluginBuilder {
         })
     }
 
-    fn import(mut self, name: impl Into<String>, value: impl Into<Extern>) -> Self {
+    fn import(mut self, name: impl ToString, value: impl Into<Extern>) -> Self {
+        let name = format!("wasm_plugin_imported__{}", name.to_string());
         self.env.insert(name, value);
         self
     }
 
-    pub fn import_function<F, Args, ReturnType>(mut self, name: impl Into<String>, value: F) -> Self
-    where
-        F: Fn(Args) -> ReturnType + Send + 'static,
-        ReturnType: serde::Serialize,
-        Args: serde::de::DeserializeOwned + Clone,
+    pub fn import_function<Args, F: ImportableFn<Args> + Send + 'static>(self, name: impl ToString, value: F) -> Self
     {
         #[derive(WasmerEnv, Clone, Default)]
         struct Env {
@@ -128,18 +125,49 @@ impl WasmPluginBuilder {
         }
 
         let env = Env::default();
-        let wrapped = move |env: &Env, len: i32| {
-            let buffer = MessageBuffer {
-                buffer: unsafe { env.buffer.get_unchecked() }.get(),
-                memory: unsafe { env.memory.get_unchecked() },
+        if F::has_arg() {
+            let f = if F::has_return() {
+                let wrapped = move |env: &Env, len: i32| -> i32 {
+                    let buffer = MessageBuffer {
+                        buffer: unsafe { env.buffer.get_unchecked() }.get(),
+                        memory: unsafe { env.memory.get_unchecked() },
+                    };
+                    value.call_with_input(buffer, len as usize) as i32
+                };
+                Function::new_native_with_env(&self.store, env, wrapped)
+            } else {
+                let wrapped = move |env: &Env, len: i32| {
+                    let buffer = MessageBuffer {
+                        buffer: unsafe { env.buffer.get_unchecked() }.get(),
+                        memory: unsafe { env.memory.get_unchecked() },
+                    };
+                    value.call_with_input(buffer, len as usize);
+                };
+                Function::new_native_with_env(&self.store, env, wrapped)
             };
-            let message = buffer.read_message(len as usize);
-            let result = value(bincode::deserialize(&message).unwrap());
-            let message = bincode::serialize(&result).unwrap();
-            buffer.write_message(&message)
-        };
-        let f = Function::new_native_with_env(&self.store, env, wrapped);
-        self.import(name, f)
+            self.import(name, f)
+        } else {
+            let f = if F::has_return() {
+                let wrapped = move |env: &Env| -> i32 {
+                    let buffer = MessageBuffer {
+                        buffer: unsafe { env.buffer.get_unchecked() }.get(),
+                        memory: unsafe { env.memory.get_unchecked() },
+                    };
+                    value.call_without_input(buffer) as i32
+                };
+                Function::new_native_with_env(&self.store, env, wrapped)
+            } else {
+                let wrapped = move |env: &Env| {
+                    let buffer = MessageBuffer {
+                        buffer: unsafe { env.buffer.get_unchecked() }.get(),
+                        memory: unsafe { env.memory.get_unchecked() },
+                    };
+                    value.call_without_input(buffer);
+                };
+                Function::new_native_with_env(&self.store, env, wrapped)
+            };
+            self.import(name, f)
+        }
     }
 
     pub fn finish(self) -> errors::Result<WasmPlugin> {
@@ -148,6 +176,61 @@ impl WasmPluginBuilder {
         Ok(WasmPlugin {
             instance: Instance::new(&self.module, &import_object)?,
         })
+    }
+}
+
+pub trait ImportableFn<ArgList> {
+    fn has_arg() -> bool;
+    fn has_return() -> bool;
+    fn call_with_input(&self, message_buffer: MessageBuffer, len: usize) -> usize;
+    fn call_without_input(&self, message_buffer: MessageBuffer) -> usize;
+}
+
+impl<F, Args, ReturnType> ImportableFn<Args> for F
+where
+    F: Fn(Args) -> ReturnType,
+    Args: serde::de::DeserializeOwned + Clone,
+    ReturnType: serde::Serialize,
+{
+    fn has_arg() -> bool { true }
+    fn has_return() -> bool { std::mem::size_of::<ReturnType>() > 0 }
+    fn call_with_input(&self, message_buffer: MessageBuffer, len: usize) -> usize {
+        let message = message_buffer.read_message(len);
+        let result = self(bincode::deserialize(&message).unwrap());
+        if std::mem::size_of::<ReturnType>() > 0 {
+            // No need to write anything for ZSTs
+            let message = bincode::serialize(&result).unwrap();
+            message_buffer.write_message(&message)
+        } else {
+            0
+        }
+    }
+
+    fn call_without_input(&self, _message_buffer: MessageBuffer) -> usize {
+        unimplemented!("Requires argument")
+    }
+}
+pub enum NoArgs {}
+impl<F, ReturnType> ImportableFn<NoArgs> for F
+where
+    F: Fn() -> ReturnType,
+    ReturnType: serde::Serialize,
+{
+    fn has_arg() -> bool { false }
+    fn has_return() -> bool { std::mem::size_of::<ReturnType>() > 0 }
+    fn call_with_input(&self, _message_buffer: MessageBuffer, _len: usize) -> usize {
+        unimplemented!("Must not supply argument")
+    }
+
+    fn call_without_input(&self, message_buffer: MessageBuffer) -> usize {
+        let result = self();
+        if std::mem::size_of::<ReturnType>() > 0 {
+            // No need to write anything for ZSTs
+            let message = bincode::serialize(&result).unwrap();
+            message_buffer.write_message(&message)
+        } else {
+            0
+        }
     }
 }
 
@@ -163,13 +246,13 @@ struct Env {
     memory: LazyInit<Memory>,
 }
 
-struct MessageBuffer<'a> {
+pub struct MessageBuffer<'a> {
     buffer: Value,
     memory: &'a Memory
 }
 
 impl<'a> MessageBuffer<'a> {
-    fn write_message(&self, message: &[u8]) {
+    fn write_message(&self, message: &[u8]) -> usize {
         let memory_idx = if let Value::I32(memory_idx) = self.buffer {
             memory_idx
         } else {
@@ -181,6 +264,7 @@ impl<'a> MessageBuffer<'a> {
             let data = self.memory.data_unchecked_mut();
             data[memory_idx as usize..memory_idx as usize + len as usize].copy_from_slice(&message);
         }
+        len as usize
     }
 
     fn read_message(&self, len: usize) -> Vec<u8> {

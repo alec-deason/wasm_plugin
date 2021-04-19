@@ -16,7 +16,10 @@ inject_getrandom = ["getrandom"]
 
 
 [dependencies]
-wasm_plugin_guest_derive = "0.1.1"
+wasm_plugin_guest_derive = { path = "./guest_derive" }
 getrandom = { version = "0.2.2", features = ["custom"], optional = true }
 bincode = "1"
 serde = "1"
+syn = { version = "1", features = ["full"] }
+proc-macro2 = "1.0.24"
+quote = "1"

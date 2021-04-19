@@ -1,5 +1,5 @@
 #![doc(html_root_url = "https://docs.rs/wasm_plugin_guest_derive/0.1.2")]
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 
 //! This crate provides attribute macros used by [wasm_plugin_guest](https://crates.io/crates/wasm_plugin_guest)
 
@@ -56,4 +56,133 @@ fn impl_function_export(ast: &syn::ItemFn) -> TokenStream {
         }
     };
     quote!(#gen #ast).into()
+}
+
+struct FnImports {
+    functions: Vec<syn::Signature>,
+}
+
+impl syn::parse::Parse for FnImports {
+    fn parse(input: syn::parse::ParseStream) -> syn::parse::Result<Self> {
+        let mut functions =  vec![];
+        while let Ok(f) = input.parse::<syn::Signature>() {
+            functions.push(f);
+            input.parse::<syn::Token![;]>()?;
+        }
+        Ok(FnImports { functions })
+    }
+}
+
+#[proc_macro]
+pub fn import_functions(input: TokenStream) -> TokenStream {
+    let ast = syn::parse_macro_input!(input as FnImports);
+    impl_import_functions(&ast)
+}
+
+fn impl_import_functions(ast: &FnImports) -> TokenStream {
+    let mut remote_fns = quote!();
+    let mut local_fns = quote!();
+    for f in ast.functions.iter().cloned() {
+        let remote_name = format_ident!("wasm_plugin_imported__{}", f.ident);
+        let gen = if f.inputs.is_empty() {
+            match &f.output {
+                syn::ReturnType::Default => {
+                    quote! {
+                        #f {
+                            unsafe {
+                                #remote_name();
+                            }
+                        }
+                    }
+                }
+                syn::ReturnType::Type(_, ty) => {
+                    quote! {
+                        #f {
+                            let len = unsafe {
+                                #remote_name()
+                            };
+                            let message:(#ty) = wasm_plugin_guest::read_message();
+                            message
+                        }
+                    }
+                }
+            }
+        } else {
+            let mut message = quote!();
+            for item in &f.inputs {
+                if let syn::FnArg::Typed(syn::PatType { pat: p, .. }) = item {
+                    if let syn::Pat::Ident(i) = p.as_ref() {
+                        message = quote!(#i,);
+                    } else {
+                        unimplemented!("unsupported argument type");
+                    }
+                } else {
+                    unimplemented!("unsupported argument type");
+                }
+            }
+            match &f.output {
+                syn::ReturnType::Default => {
+                    quote! {
+                        #f {
+                            let len = wasm_plugin_guest::write_message(&(#message));
+                            unsafe {
+                                #remote_name(len);
+                            }
+                        }
+                    }
+                }
+                syn::ReturnType::Type(_, ty) => {
+                    quote! {
+                        #f {
+                            let len = wasm_plugin_guest::write_message(&(#message));
+                            let len = unsafe {
+                                #remote_name(len)
+                            };
+                            let message:(#ty) = wasm_plugin_guest::read_message();
+                            message
+                        }
+                    }
+                }
+            }
+        };
+        local_fns = quote! {
+            #local_fns
+            #gen
+        };
+        let gen = if f.inputs.is_empty() {
+            match &f.output {
+                syn::ReturnType::Default => {
+                    quote! {
+                        fn #remote_name();
+                    }
+                }
+                syn::ReturnType::Type(_, _) => {
+                    quote! {
+                        fn #remote_name() -> i32;
+                    }
+                }
+            }
+        } else {
+            match &f.output {
+                syn::ReturnType::Default => {
+                    quote! {
+                        fn #remote_name(i32);
+                    }
+                }
+                syn::ReturnType::Type(_, _) => {
+                    quote! {
+                        fn #remote_name(len: i32) -> i32;
+                    }
+                }
+            }
+        };
+        remote_fns = quote!(#remote_fns #gen);
+    }
+    let exports = quote! {
+        #local_fns
+        extern "C" {
+            #remote_fns
+        }
+    };
+    exports.into()
 }

@@ -4,15 +4,18 @@ fn hello() -> String {
 }
 
 #[wasm_plugin_guest::export_function]
-fn echo(message: String, message2: String) -> String {
-    format!("{} {}", message, message2)
+fn echo(message: String) -> String {
+    let message = please_capitalize_this(message);
+    format!("{}", message)
 }
 
-extern "C" {
-    fn the_hosts_favorite_numbers(len: i32);
+wasm_plugin_guest::import_functions!{
+    fn the_hosts_favorite_numbers() -> Vec<i32>;
+    fn please_capitalize_this(s: String) -> String;
 }
+
 #[wasm_plugin_guest::export_function]
 fn favorite_numbers() -> Vec<i32> {
-    unsafe { the_hosts_favorite_numbers(0); }
-    vec![1, 2, 43]
+    let numbers = the_hosts_favorite_numbers();
+    numbers.into_iter().map(|n| n+1).collect()
 }
