@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.2")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.3")]
 #![deny(missing_docs)]
 
 //! A low-ish level tool for easily hosting WASM based plugins.
@@ -56,10 +56,16 @@
 //! If the `inject_getrandom` feature is selected then the host's getrandom
 //! will be injected into the plugin which allows `rand` to be used in the
 //! plugin. `inject_getrandom` is selected by default.
-//! ## Limitations
 //!
-//! Currently serialization is done using bincode which limits plugins to being
-//! written in rust. This may change in the future.
+//! Currently serialization uses either bincode or json, selected by feature:
+//! `serialize_bincode`: Uses serde and bincode. It is selected by default.
+//! `serialize_json`: Uses serde and serde_json.
+//! `serialize_nanoserde_json': Uses nanoserde.
+//!
+//! Bincode is likely the best choice if all plugins the system uses will be
+//! written in Rust. Json is useful if a mix or languages will be used.
+//!
+//! ## Limitations
 //!
 //! There is no reflection so you must know up front which functions
 //! a plugin exports and their signatures.

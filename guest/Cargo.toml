@@ -1,6 +1,6 @@
 [package]
 name = "wasm_plugin_guest"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Alec Deason <wasm_plugin@tinycountry.com>"]
 edition = "2018"
 license = "MIT"
@@ -11,15 +11,17 @@ keywords = ["WASM", "plugin"]
 categories = ["game-development", "wasm"]
 
 [features]
-default = ["inject_getrandom"]
+default = ["inject_getrandom", "serialize_bincode"]
 inject_getrandom = ["getrandom"]
+serialize_bincode = ["bincode", "serde"]
+serialize_json = ["serde_json", "serde"]
+serialize_nanoserde_json = ["nanoserde"]
 
 
 [dependencies]
-wasm_plugin_guest_derive = { path = "./guest_derive" }
-getrandom = { version = "0.2.2", features = ["custom"], optional = true }
-bincode = "1"
-serde = "1"
-syn = { version = "1", features = ["full"] }
-proc-macro2 = "1.0.24"
-quote = "1"
+wasm_plugin_guest_derive = "0.1.3"
+getrandom = { version = "0.2", features = ["custom"], optional = true }
+serde = { version = "1", optional = true }
+bincode = { version = "1", optional = true }
+serde_json = { version = "1", optional = true }
+nanoserde = { version = "0.1", optional = true }

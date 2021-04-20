@@ -1,12 +1,11 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest_derive/0.1.2")]
-//#![deny(missing_docs)]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest_derive/0.1.3")]
+#![deny(missing_docs)]
 
 //! This crate provides attribute macros used by [wasm_plugin_guest](https://crates.io/crates/wasm_plugin_guest)
 
 use proc_macro::TokenStream;
 extern crate proc_macro;
 use quote::{format_ident, quote};
-use syn;
 
 /// Builds an extern function which will handle serializing and
 /// deserializing of arguments and return values of the function it is applied
@@ -64,7 +63,7 @@ struct FnImports {
 
 impl syn::parse::Parse for FnImports {
     fn parse(input: syn::parse::ParseStream) -> syn::parse::Result<Self> {
-        let mut functions =  vec![];
+        let mut functions = vec![];
         while let Ok(f) = input.parse::<syn::Signature>() {
             functions.push(f);
             input.parse::<syn::Token![;]>()?;
@@ -73,6 +72,21 @@ impl syn::parse::Parse for FnImports {
     }
 }
 
+/// Import functions from the host program. The function's arguments an return
+/// type must all be serializable. Several functions can be imported at once
+/// by listing their signatures seperated by `;`
+///
+/// ```rust
+/// import_functions! {
+///     fn my_function();
+///     fn my_other_function(s: String) -> Vec<u8>;
+/// }
+/// ```
+/// The macro creates a safe wrapper function using the given name which can
+/// be called in the plugin code. The actual imported function, which normal
+/// code will never need to access, will have a mangled name:
+/// `wasm_plugin_imported__ORIGINAL_NAME` and is only intended to be called by
+/// by host code using [wasm_plugin_host](https://crates.io/crates/wasm_plugin_host)
 #[proc_macro]
 pub fn import_functions(input: TokenStream) -> TokenStream {
     let ast = syn::parse_macro_input!(input as FnImports);
