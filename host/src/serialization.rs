@@ -43,7 +43,7 @@ impl<T: serde::de::DeserializeOwned + Clone> Deserializable for T {
 impl<T: nanoserde::DeJson> Deserializable for T {
     fn deserialize(data: &[u8]) -> errors::Result<Self> {
         nanoserde::DeJson::deserialize_json(
-            std::str::from_utf8(data).map_err(|_| errors::WasmPluginError::DeserializationError),
+            std::str::from_utf8(data).map_err(|_| errors::WasmPluginError::DeserializationError)?,
         )
         .map_err(|_| errors::WasmPluginError::DeserializationError)
     }
