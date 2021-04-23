@@ -11,12 +11,12 @@ export function wasm_plugin_exported__hello(): i32 {
 
 function please_capitalize_this(input: String): String {
     let len = String.UTF8.encodeUnsafe(changetype<usize>(input), input.length, changetype<usize>(MESSAGE_BUFFER)) as i32;
-    wasm_plugin_imported__please_capitalize_this(len);
-    return String.UTF8.decode(MESSAGE_BUFFER);
+    let response_len = wasm_plugin_imported__please_capitalize_this(len);
+    return String.UTF8.decode(MESSAGE_BUFFER.slice(0, response_len));
 }
 
-export function wasm_plugin_exported__echo(): i32 {
-   let input: string = String.UTF8.decode(MESSAGE_BUFFER);
+export function wasm_plugin_exported__echo(len: i32): i32 {
+   let input: string = String.UTF8.decode(MESSAGE_BUFFER.slice(0, len));
    let output = please_capitalize_this(input);
    return String.UTF8.encodeUnsafe(changetype<usize>(output), output.length, changetype<usize>(MESSAGE_BUFFER)) as i32;
 }

@@ -10,7 +10,7 @@ impl<T: serde::Serialize> Serializable for T {
 #[cfg(feature = "serialize_json")]
 impl<T: serde::Serialize> Serializable for T {
     fn serialize(&self) -> Vec<u8> {
-        serde_json::to_string(self).unwrap()
+        serde_json::to_vec(self).unwrap()
     }
 }
 #[cfg(feature = "serialize_nanoserde_json")]
@@ -32,7 +32,7 @@ impl<T: serde::de::DeserializeOwned + Clone> Deserializable for T {
 #[cfg(feature = "serialize_json")]
 impl<T: serde::de::DeserializeOwned + Clone> Deserializable for T {
     fn deserialize(data: &[u8]) -> Self {
-        serde_json::from_str(self).unwrap()
+        serde_json::from_slice(data).unwrap()
     }
 }
 #[cfg(feature = "serialize_nanoserde_json")]

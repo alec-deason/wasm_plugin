@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest/0.1.3")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest/0.1.4")]
 #![deny(missing_docs)]
 
 //! A low-ish level tool for easily writing WASM based plugins to be hosted by
@@ -23,13 +23,13 @@ mod serialization;
 pub use wasm_plugin_guest_derive::{export_function, import_functions};
 
 #[no_mangle]
-static mut MESSAGE_BUFFER: [u8; 1024 * 10] = [0; 1024 * 10];
+static mut MESSAGE_BUFFER: [u8; 1024 * 100000] = [0; 1024 * 100000];
 
 /// Read a message from the buffer used to communicate with the host. You should
 /// never need to call this directly.
-pub fn read_message<T: serialization::Deserializable>() -> T {
+pub fn read_message<T: serialization::Deserializable>(len: i32) -> T {
     let buf = unsafe { &mut MESSAGE_BUFFER };
-    T::deserialize(buf)
+    T::deserialize(&buf[0..len as usize])
 }
 
 /// Write a message to the buffer used to communicate with the host. You should

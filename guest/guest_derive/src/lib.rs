@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest_derive/0.1.3")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest_derive/0.1.4")]
 #![deny(missing_docs)]
 
 //! This crate provides attribute macros used by [wasm_plugin_guest](https://crates.io/crates/wasm_plugin_guest)
@@ -35,20 +35,31 @@ fn impl_function_export(ast: &syn::ItemFn) -> TokenStream {
     } else {
         let mut argument_types = quote!();
         let mut call = quote!();
-        for (i, arg) in ast.sig.inputs.iter().enumerate() {
-            let i = syn::Index::from(i);
-            call = quote!(#call message.#i,);
-            if let syn::FnArg::Typed(t) = arg {
+        if ast.sig.inputs.len() == 1 {
+            if let syn::FnArg::Typed(t) = &ast.sig.inputs[0] {
                 let ty = &t.ty;
-                argument_types = quote!(#argument_types #ty,);
+                argument_types = quote!(#ty);
             } else {
                 panic!();
             }
+            call = quote!(message);
+        } else {
+            for (i, arg) in ast.sig.inputs.iter().enumerate() {
+                let i = syn::Index::from(i);
+                call = quote!(#call message.#i,);
+                if let syn::FnArg::Typed(t) = arg {
+                    let ty = &t.ty;
+                    argument_types = quote!(#argument_types #ty,);
+                } else {
+                    panic!();
+                }
+            }
+            argument_types = quote! { (#argument_types) };
         }
         quote! {
             #[no_mangle]
-            pub extern "C" fn #remote_name() -> i32 {
-                let message:(#argument_types) = wasm_plugin_guest::read_message();
+            pub extern "C" fn #remote_name(len: i32) -> i32 {
+                let message:#argument_types = wasm_plugin_guest::read_message(len);
 
                 wasm_plugin_guest::write_message(&#name(#call))
             }
@@ -115,7 +126,7 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
                             let len = unsafe {
                                 #remote_name()
                             };
-                            let message:(#ty) = wasm_plugin_guest::read_message();
+                            let message:(#ty) = wasm_plugin_guest::read_message(len);
                             message
                         }
                     }
@@ -152,7 +163,7 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
                             let len = unsafe {
                                 #remote_name(len)
                             };
-                            let message:(#ty) = wasm_plugin_guest::read_message();
+                            let message:(#ty) = wasm_plugin_guest::read_message(len);
                             message
                         }
                     }

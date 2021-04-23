@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.4")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.5")]
 #![deny(missing_docs)]
 
 //! A low-ish level tool for easily hosting WASM based plugins.
@@ -344,17 +344,26 @@ impl WasmPlugin {
         let message = args.serialize()?;
         self.message_buffer()?.write_message(&message);
 
-        self.call_function(fn_name)
+        let buff = self.call_function_raw(fn_name, Some(message.len()))?;
+        ReturnType::deserialize(&buff)
     }
 
-    fn call_function_raw(&mut self, fn_name: &str) -> errors::Result<Vec<u8>> {
+    fn call_function_raw(
+        &mut self,
+        fn_name: &str,
+        input_len: Option<usize>,
+    ) -> errors::Result<Vec<u8>> {
         let f = self
             .instance
             .exports
             .get_function(&format!("wasm_plugin_exported__{}", fn_name))
             .unwrap_or_else(|_| panic!("Unable to find function {}", fn_name));
 
-        let result_len = f.native::<(), i32>()?.call()?;
+        let result_len = if let Some(len) = input_len {
+            f.native::<i32, i32>()?.call(len as i32)?
+        } else {
+            f.native::<(), i32>()?.call()?
+        };
 
         Ok(self.message_buffer()?.read_message(result_len as usize))
     }
@@ -367,7 +376,7 @@ impl WasmPlugin {
     where
         ReturnType: Deserializable,
     {
-        let buff = self.call_function_raw(fn_name)?;
+        let buff = self.call_function_raw(fn_name, None)?;
         ReturnType::deserialize(&buff)
     }
 }

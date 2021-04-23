@@ -12,7 +12,7 @@ impl<T: serde::Serialize> Serializable for T {
 #[cfg(feature = "serialize_json")]
 impl<T: serde::Serialize> Serializable for T {
     fn serialize(&self) -> errors::Result<Vec<u8>> {
-        serde_json::to_string(self).map_err(|_| errors::WasmPluginError::SerializationError)
+        serde_json::to_vec(self).map_err(|_| errors::WasmPluginError::SerializationError)
     }
 }
 #[cfg(feature = "serialize_nanoserde_json")]
@@ -36,7 +36,7 @@ impl<T: serde::de::DeserializeOwned + Clone> Deserializable for T {
 #[cfg(feature = "serialize_json")]
 impl<T: serde::de::DeserializeOwned + Clone> Deserializable for T {
     fn deserialize(data: &[u8]) -> errors::Result<Self> {
-        serde_json::from_str(self).map_err(|_| errors::WasmPluginError::DeserializationError)
+        serde_json::from_slice(data).map_err(|_| errors::WasmPluginError::DeserializationError)
     }
 }
 #[cfg(feature = "serialize_nanoserde_json")]
