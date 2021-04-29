@@ -28,7 +28,7 @@ fn impl_function_export(ast: &syn::ItemFn) -> TokenStream {
     let gen = if ast.sig.inputs.is_empty() {
         quote! {
             #[no_mangle]
-            pub extern "C" fn #remote_name() -> i32 {
+            pub extern "C" fn #remote_name() -> u32 {
                 wasm_plugin_guest::write_message(&#name())
             }
         }
@@ -58,7 +58,7 @@ fn impl_function_export(ast: &syn::ItemFn) -> TokenStream {
         }
         quote! {
             #[no_mangle]
-            pub extern "C" fn #remote_name(len: i32) -> i32 {
+            pub extern "C" fn #remote_name(len: u32) -> u32 {
                 let message:#argument_types = wasm_plugin_guest::read_message(len);
 
                 wasm_plugin_guest::write_message(&#name(#call))
@@ -196,7 +196,7 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
                 }
                 syn::ReturnType::Type(_, _) => {
                     quote! {
-                        fn #remote_name() -> i32;
+                        fn #remote_name() -> u32;
                     }
                 }
             }
@@ -204,12 +204,12 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
             match &f.output {
                 syn::ReturnType::Default => {
                     quote! {
-                        fn #remote_name(len: i32);
+                        fn #remote_name(len: u32);
                     }
                 }
                 syn::ReturnType::Type(_, _) => {
                     quote! {
-                        fn #remote_name(len: i32) -> i32;
+                        fn #remote_name(len: u32) -> u32;
                     }
                 }
             }

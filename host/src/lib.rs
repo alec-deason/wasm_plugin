@@ -104,7 +104,7 @@ impl WasmPluginBuilder {
         let mut env = wasmer::Exports::new();
         env.insert(
             "abort",
-            Function::new_native(&store, |_: i32, _: i32, _: i32, _: i32| {}),
+            Function::new_native(&store, |_: u32, _: u32, _: i32, _: i32| {}),
         );
         #[cfg(feature = "inject_getrandom")]
         {
@@ -123,8 +123,20 @@ impl WasmPluginBuilder {
         self
     }
 
+    // FIXME: There is a lot of problematic duplication in this code. I need
+    // to sit down and come up with a better abstraction.
+
     /// Import a function defined in the host into the guest. The function's
     /// arguments and return type must all be serializable.
+    /// An immutable reference to `ctx` will be passed to the function as it's
+    /// first argument each time it's called.
+    ///
+    /// NOTE: This method exists due to a limitation in the underlying Waswer
+    /// engine which currently doesn't support improted closures with
+    /// captured context. The Wasamer developers have said they are interested
+    /// in removing that limitation and when they do this method will be
+    /// removed as in favor of `import_function' since context can be more
+    /// idiomatically handled with captured values.
     pub fn import_function_with_context<Args, F: ImportableFnWithContext<C, Args> + Send + 'static, C: Send + Sync + Clone + 'static>(
         self,
         name: impl ToString,
@@ -147,16 +159,16 @@ impl WasmPluginBuilder {
 
         if F::has_arg() {
             let f = if F::has_return() {
-                let wrapped = move |env: &Env<C>, len: i32| -> i32 {
+                let wrapped = move |env: &Env<C>, len: u32| -> u32 {
                     let buffer = MessageBuffer {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_with_input(buffer, len as usize, &env.ctx).unwrap() as i32
+                    value.call_with_input(buffer, len as usize, &env.ctx).unwrap() as u32
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             } else {
-                let wrapped = move |env: &Env<C>, len: i32| {
+                let wrapped = move |env: &Env<C>, len: u32| {
                     let buffer = MessageBuffer {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
@@ -168,12 +180,12 @@ impl WasmPluginBuilder {
             self.import(name, f)
         } else {
             let f = if F::has_return() {
-                let wrapped = move |env: &Env<C>| -> i32 {
+                let wrapped = move |env: &Env<C>| -> u32 {
                     let buffer = MessageBuffer {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_without_input(buffer, &env.ctx).unwrap() as i32
+                    value.call_without_input(buffer, &env.ctx).unwrap() as u32
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             } else {
@@ -183,6 +195,71 @@ impl WasmPluginBuilder {
                         memory: unsafe { env.memory.get_unchecked() },
                     };
                     value.call_without_input(buffer, &env.ctx).unwrap();
+                };
+                Function::new_native_with_env(&self.store, env, wrapped)
+            };
+            self.import(name, f)
+        }
+    }
+
+
+    /// Import a function defined in the host into the guest. The function's
+    /// arguments and return type must all be serializable.
+    pub fn import_function<Args, F: ImportableFn<Args> + Send + 'static>(
+        self,
+        name: impl ToString,
+        value: F,
+    ) -> Self {
+        #[derive(WasmerEnv, Clone)]
+        struct Env {
+            #[wasmer(export(name = "MESSAGE_BUFFER"))]
+            buffer: LazyInit<Global>,
+            #[wasmer(export)]
+            memory: LazyInit<Memory>,
+        }
+        let env = Env {
+            buffer: Default::default(),
+            memory: Default::default(),
+        };
+
+        if F::has_arg() {
+            let f = if F::has_return() {
+                let wrapped = move |env: &Env, len: u32| -> u32 {
+                    let buffer = MessageBuffer {
+                        buffer: unsafe { env.buffer.get_unchecked() }.get(),
+                        memory: unsafe { env.memory.get_unchecked() },
+                    };
+                    value.call_with_input(buffer, len as usize).unwrap() as u32
+                };
+                Function::new_native_with_env(&self.store, env, wrapped)
+            } else {
+                let wrapped = move |env: &Env, len: u32| {
+                    let buffer = MessageBuffer {
+                        buffer: unsafe { env.buffer.get_unchecked() }.get(),
+                        memory: unsafe { env.memory.get_unchecked() },
+                    };
+                    value.call_with_input(buffer, len as usize).unwrap();
+                };
+                Function::new_native_with_env(&self.store, env, wrapped)
+            };
+            self.import(name, f)
+        } else {
+            let f = if F::has_return() {
+                let wrapped = move |env: &Env| -> u32 {
+                    let buffer = MessageBuffer {
+                        buffer: unsafe { env.buffer.get_unchecked() }.get(),
+                        memory: unsafe { env.memory.get_unchecked() },
+                    };
+                    value.call_without_input(buffer).unwrap() as u32
+                };
+                Function::new_native_with_env(&self.store, env, wrapped)
+            } else {
+                let wrapped = move |env: &Env| {
+                    let buffer = MessageBuffer {
+                        buffer: unsafe { env.buffer.get_unchecked() }.get(),
+                        memory: unsafe { env.memory.get_unchecked() },
+                    };
+                    value.call_without_input(buffer).unwrap();
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             };
@@ -200,7 +277,8 @@ impl WasmPluginBuilder {
     }
 }
 
-/// Thing
+/// A marker trait for Fn types who's arguments and return type can be
+/// serialized and are thus safe to import into a plugin;
 pub trait ImportableFnWithContext<C, Arglist> {
     #[doc(hidden)]
     fn has_arg() -> bool;
@@ -374,7 +452,7 @@ impl<'a> MessageBuffer<'a> {
         } else {
             panic!();
         };
-        let len = message.len() as i32;
+        let len = message.len() as u32;
 
         unsafe {
             let data = self.memory.data_unchecked_mut();
@@ -439,9 +517,9 @@ impl WasmPlugin {
             .unwrap_or_else(|_| panic!("Unable to find function {}", fn_name));
 
         let result_len = if let Some(len) = input_len {
-            f.native::<i32, i32>()?.call(len as i32)?
+            f.native::<u32, u32>()?.call(len as u32)?
         } else {
-            f.native::<(), i32>()?.call()?
+            f.native::<(), u32>()?.call()?
         };
 
         Ok(self.message_buffer()?.read_message(result_len as usize))
@@ -461,7 +539,7 @@ impl WasmPlugin {
 }
 
 #[cfg(feature = "inject_getrandom")]
-fn getrandom_shim(env: &Env, ptr: i32, len: i32) {
+fn getrandom_shim(env: &Env, ptr: u32, len: u32) {
     if let Some(memory) = env.memory_ref() {
         let view: MemoryView<u8> = memory.view();
         let mut buff: Vec<u8> = vec![0; len as usize];

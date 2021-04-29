@@ -27,14 +27,14 @@ static mut MESSAGE_BUFFER: [u8; 1024 * 100000] = [0; 1024 * 100000];
 
 /// Read a message from the buffer used to communicate with the host. You should
 /// never need to call this directly.
-pub fn read_message<T: serialization::Deserializable>(len: i32) -> T {
+pub fn read_message<T: serialization::Deserializable>(len: u32) -> T {
     let buf = unsafe { &mut MESSAGE_BUFFER };
     T::deserialize(&buf[0..len as usize])
 }
 
 /// Write a message to the buffer used to communicate with the host. You should
 /// never need to call this directly.
-pub fn write_message<U>(message: &U) -> i32
+pub fn write_message<U>(message: &U) -> u32
 where
     U: serialization::Serializable,
 {
@@ -42,7 +42,7 @@ where
     let message: Vec<u8> = message.serialize();
     let len = message.len();
     buf[0..len].copy_from_slice(&message);
-    len as i32
+    len as u32
 }
 
 #[cfg(feature = "inject_getrandom")]
@@ -52,7 +52,7 @@ mod getrandom_shim {
     use getrandom::Error;
 
     extern "C" {
-        fn __getrandom(ptr: i32, len: i32);
+        fn __getrandom(ptr: u32, len: u32);
     }
 
     #[allow(clippy::unnecessary_wraps)]
@@ -60,7 +60,7 @@ mod getrandom_shim {
         let len = buf.len();
         let ptr = buf.as_ptr();
         unsafe {
-            __getrandom(ptr as i32, len as i32);
+            __getrandom(ptr as u32, len as u32);
         }
         Ok(())
     }

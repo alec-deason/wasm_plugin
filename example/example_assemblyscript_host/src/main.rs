@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Any type that can be serialized works
-    let response: Vec<i32> = plugin.call_function("favorite_numbers")?;
+    let response: Vec<u32> = plugin.call_function("favorite_numbers")?;
     println!(
         "The guest's favorite integers (less that 2**32) are: '{:?}'",
         response
