@@ -134,22 +134,35 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
             }
         } else {
             let mut message = quote!();
-            for item in &f.inputs {
-                if let syn::FnArg::Typed(syn::PatType { pat: p, .. }) = item {
+            if f.inputs.len() == 1 {
+                if let syn::FnArg::Typed(syn::PatType { pat: p, .. }) = &f.inputs[0] {
                     if let syn::Pat::Ident(i) = p.as_ref() {
-                        message = quote!(#i,);
+                        message = quote!(#i);
                     } else {
                         unimplemented!("unsupported argument type");
                     }
                 } else {
                     unimplemented!("unsupported argument type");
                 }
+            } else {
+                for item in &f.inputs {
+                    if let syn::FnArg::Typed(syn::PatType { pat: p, .. }) = item {
+                        if let syn::Pat::Ident(i) = p.as_ref() {
+                            message = quote!(#i,);
+                        } else {
+                            unimplemented!("unsupported argument type");
+                        }
+                    } else {
+                        unimplemented!("unsupported argument type");
+                    }
+                }
+                message = quote!((#message));
             }
             match &f.output {
                 syn::ReturnType::Default => {
                     quote! {
                         #f {
-                            let len = wasm_plugin_guest::write_message(&(#message));
+                            let len = wasm_plugin_guest::write_message(&#message);
                             unsafe {
                                 #remote_name(len);
                             }
@@ -191,7 +204,7 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
             match &f.output {
                 syn::ReturnType::Default => {
                     quote! {
-                        fn #remote_name(i32);
+                        fn #remote_name(len: i32);
                     }
                 }
                 syn::ReturnType::Type(_, _) => {

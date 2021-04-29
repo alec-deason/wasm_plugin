@@ -125,58 +125,64 @@ impl WasmPluginBuilder {
 
     /// Import a function defined in the host into the guest. The function's
     /// arguments and return type must all be serializable.
-    pub fn import_function<Args, F: ImportableFn<Args> + Send + 'static>(
+    pub fn import_function_with_context<Args, F: ImportableFnWithContext<C, Args> + Send + 'static, C: Send + Sync + Clone + 'static>(
         self,
         name: impl ToString,
+        ctx: C,
         value: F,
     ) -> Self {
-        #[derive(WasmerEnv, Clone, Default)]
-        struct Env {
+        #[derive(WasmerEnv, Clone)]
+        struct Env<C> where C: Send + Sync + Clone + 'static {
             #[wasmer(export(name = "MESSAGE_BUFFER"))]
             buffer: LazyInit<Global>,
             #[wasmer(export)]
             memory: LazyInit<Memory>,
+            ctx: C,
         }
+        let env = Env {
+            buffer: Default::default(),
+            memory: Default::default(),
+            ctx
+        };
 
-        let env = Env::default();
         if F::has_arg() {
             let f = if F::has_return() {
-                let wrapped = move |env: &Env, len: i32| -> i32 {
+                let wrapped = move |env: &Env<C>, len: i32| -> i32 {
                     let buffer = MessageBuffer {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_with_input(buffer, len as usize).unwrap() as i32
+                    value.call_with_input(buffer, len as usize, &env.ctx).unwrap() as i32
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             } else {
-                let wrapped = move |env: &Env, len: i32| {
+                let wrapped = move |env: &Env<C>, len: i32| {
                     let buffer = MessageBuffer {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_with_input(buffer, len as usize).unwrap();
+                    value.call_with_input(buffer, len as usize, &env.ctx).unwrap();
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             };
             self.import(name, f)
         } else {
             let f = if F::has_return() {
-                let wrapped = move |env: &Env| -> i32 {
+                let wrapped = move |env: &Env<C>| -> i32 {
                     let buffer = MessageBuffer {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_without_input(buffer).unwrap() as i32
+                    value.call_without_input(buffer, &env.ctx).unwrap() as i32
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             } else {
-                let wrapped = move |env: &Env| {
+                let wrapped = move |env: &Env<C>| {
                     let buffer = MessageBuffer {
                         buffer: unsafe { env.buffer.get_unchecked() }.get(),
                         memory: unsafe { env.memory.get_unchecked() },
                     };
-                    value.call_without_input(buffer).unwrap();
+                    value.call_without_input(buffer, &env.ctx).unwrap();
                 };
                 Function::new_native_with_env(&self.store, env, wrapped)
             };
@@ -191,6 +197,79 @@ impl WasmPluginBuilder {
         Ok(WasmPlugin {
             instance: Instance::new(&self.module, &import_object)?,
         })
+    }
+}
+
+/// Thing
+pub trait ImportableFnWithContext<C, Arglist> {
+    #[doc(hidden)]
+    fn has_arg() -> bool;
+    #[doc(hidden)]
+    fn has_return() -> bool;
+    #[doc(hidden)]
+    fn call_with_input(&self, message_buffer: MessageBuffer, len: usize, ctx: &C) -> errors::Result<usize>;
+    #[doc(hidden)]
+    fn call_without_input(&self, message_buffer: MessageBuffer, ctx: &C) -> errors::Result<usize>;
+}
+
+impl<C, Args, ReturnType, F> ImportableFnWithContext<C, Args> for F
+where
+    F: Fn(&C, Args) -> ReturnType,
+    Args: Deserializable,
+    ReturnType: Serializable,
+{
+    fn has_arg() -> bool {
+        true
+    }
+    fn has_return() -> bool {
+        std::mem::size_of::<ReturnType>() > 0
+    }
+    fn call_with_input(&self, message_buffer: MessageBuffer, len: usize, ctx: &C) -> errors::Result<usize> {
+        let message = message_buffer.read_message(len);
+        let result = self(ctx, Args::deserialize(&message)?);
+        if std::mem::size_of::<ReturnType>() > 0 {
+            // No need to write anything for ZSTs
+            let message = result.serialize()?;
+            Ok(message_buffer.write_message(&message))
+        } else {
+            Ok(0)
+        }
+    }
+
+    fn call_without_input(&self, _message_buffer: MessageBuffer, _ctx: &C) -> errors::Result<usize> {
+        unimplemented!("Requires argument")
+    }
+}
+
+impl<C, ReturnType, F> ImportableFnWithContext<C, NoArgs> for F
+where
+    F: Fn(&C) -> ReturnType,
+    ReturnType: Serializable,
+{
+    fn has_arg() -> bool {
+        false
+    }
+    fn has_return() -> bool {
+        std::mem::size_of::<ReturnType>() > 0
+    }
+    fn call_with_input(
+        &self,
+        _message_buffer: MessageBuffer,
+        _len: usize,
+        _ctx: &C,
+    ) -> errors::Result<usize> {
+        unimplemented!("Must not supply argument")
+    }
+
+    fn call_without_input(&self, message_buffer: MessageBuffer, ctx: &C) -> errors::Result<usize> {
+        let result = self(ctx);
+        if std::mem::size_of::<ReturnType>() > 0 {
+            // No need to write anything for ZSTs
+            let message = result.serialize()?;
+            Ok(message_buffer.write_message(&message))
+        } else {
+            Ok(0)
+        }
     }
 }
 
