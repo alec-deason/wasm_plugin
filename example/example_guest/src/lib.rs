@@ -6,6 +6,7 @@ fn hello() -> String {
 #[wasm_plugin_guest::export_function]
 fn echo(message: String) -> String {
     let message = please_capitalize_this(message);
+    please_capitalize_this(message.clone());
     format!("{}", message)
 }
 

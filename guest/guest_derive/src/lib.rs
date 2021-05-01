@@ -28,8 +28,12 @@ fn impl_function_export(ast: &syn::ItemFn) -> TokenStream {
     let gen = if ast.sig.inputs.is_empty() {
         quote! {
             #[no_mangle]
-            pub extern "C" fn #remote_name() -> u32 {
-                wasm_plugin_guest::write_message(&#name())
+            pub extern "C" fn #remote_name() -> u64 {
+                let (ptr, len) = wasm_plugin_guest::write_message(&#name());
+                let mut fat = wasm_plugin_guest::FatPointer(0);
+                fat.set_ptr(ptr as u32);
+                fat.set_len(len as u32);
+                fat.0
             }
         }
     } else {
@@ -58,10 +62,14 @@ fn impl_function_export(ast: &syn::ItemFn) -> TokenStream {
         }
         quote! {
             #[no_mangle]
-            pub extern "C" fn #remote_name(len: u32) -> u32 {
-                let message:#argument_types = wasm_plugin_guest::read_message(len);
+            pub extern "C" fn #remote_name(ptr: u32, len: u32) -> u64 {
+                let message:#argument_types = wasm_plugin_guest::read_message(ptr as usize, len as usize);
 
-                wasm_plugin_guest::write_message(&#name(#call))
+                let (ptr, len) = wasm_plugin_guest::write_message(&#name(#call));
+                let mut fat = wasm_plugin_guest::FatPointer(0);
+                fat.set_ptr(ptr as u32);
+                fat.set_len(len as u32);
+                fat.0
             }
         }
     };
@@ -123,10 +131,11 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
                 syn::ReturnType::Type(_, ty) => {
                     quote! {
                         #f {
-                            let len = unsafe {
+                            let fat_ptr = unsafe {
                                 #remote_name()
                             };
-                            let message:(#ty) = wasm_plugin_guest::read_message(len);
+                            let fat_ptr = wasm_plugin_guest::FatPointer(fat_ptr);
+                            let message:(#ty) = wasm_plugin_guest::read_message(fat_ptr.ptr() as usize, fat_ptr.len() as usize);
                             message
                         }
                     }
@@ -162,9 +171,9 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
                 syn::ReturnType::Default => {
                     quote! {
                         #f {
-                            let len = wasm_plugin_guest::write_message(&#message);
+                            let (ptr, len) = wasm_plugin_guest::write_message(&#message);
                             unsafe {
-                                #remote_name(len);
+                                #remote_name(ptr as u32, len as u32);
                             }
                         }
                     }
@@ -172,11 +181,12 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
                 syn::ReturnType::Type(_, ty) => {
                     quote! {
                         #f {
-                            let len = wasm_plugin_guest::write_message(&(#message));
-                            let len = unsafe {
-                                #remote_name(len)
+                            let (ptr, len) = wasm_plugin_guest::write_message(&(#message));
+                            let fat_ptr = unsafe {
+                                #remote_name(ptr as u32, len as u32)
                             };
-                            let message:(#ty) = wasm_plugin_guest::read_message(len);
+                            let fat_ptr = wasm_plugin_guest::FatPointer(fat_ptr);
+                            let message:(#ty) = wasm_plugin_guest::read_message(fat_ptr.ptr() as usize, fat_ptr.len() as usize);
                             message
                         }
                     }
@@ -196,7 +206,7 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
                 }
                 syn::ReturnType::Type(_, _) => {
                     quote! {
-                        fn #remote_name() -> u32;
+                        fn #remote_name() -> u64;
                     }
                 }
             }
@@ -204,12 +214,12 @@ fn impl_import_functions(ast: &FnImports) -> TokenStream {
             match &f.output {
                 syn::ReturnType::Default => {
                     quote! {
-                        fn #remote_name(len: u32);
+                        fn #remote_name(ptr: u32, len: u32);
                     }
                 }
                 syn::ReturnType::Type(_, _) => {
                     quote! {
-                        fn #remote_name(len: u32) -> u32;
+                        fn #remote_name(ptr: u32, len: u32) -> u64;
                     }
                 }
             }

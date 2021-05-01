@@ -2,12 +2,13 @@ use wasm_plugin_host::WasmPluginBuilder;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut plugin = WasmPluginBuilder::from_file(
-        "../example_guest/target/wasm32-unknown-unknown/release/example_guest.wasm",
+        "../example_guest/target/wasm32-unknown-unknown/debug/example_guest.wasm",
     )?
     .import_function("the_hosts_favorite_numbers", || {
         vec![0, 1, 42]
     })
     .import_function("please_capitalize_this", |mut s: String| {
+        println!("From guest: {}", s);
         s.make_ascii_uppercase();
         s
     })
