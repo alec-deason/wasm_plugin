@@ -49,7 +49,10 @@ where
 {
     let message: Vec<u8> = message.serialize();
     let local_len = message.len();
-    (ManuallyDrop::new(message).as_mut_ptr() as *const usize as usize, local_len)
+    (
+        ManuallyDrop::new(message).as_mut_ptr() as *const usize as usize,
+        local_len,
+    )
 }
 
 #[cfg(feature = "inject_getrandom")]
@@ -77,16 +80,12 @@ mod getrandom_shim {
 /// Allocate a buffer suitable for writing messages to and return it's address.
 #[no_mangle]
 pub extern "C" fn allocate_message_buffer(len: u32) -> u32 {
-    let mut buffer:ManuallyDrop<Vec<u8>> = ManuallyDrop::new(Vec::with_capacity(len as usize));
+    let mut buffer: ManuallyDrop<Vec<u8>> = ManuallyDrop::new(Vec::with_capacity(len as usize));
     buffer.as_mut_ptr() as *const u32 as u32
 }
 
 /// Frees a previously allocated buffer.
 #[no_mangle]
 pub extern "C" fn free_message_buffer(ptr: u32, len: u32) {
-    unsafe {
-        drop(
-            Vec::from_raw_parts(ptr as *mut u8, 0, len as usize)
-        )
-    }
+    unsafe { drop(Vec::from_raw_parts(ptr as *mut u8, 0, len as usize)) }
 }
