@@ -2,25 +2,40 @@ import { JSON, JSONEncoder } from "assemblyscript-json";
 
 import {wasm_plugin_imported__please_capitalize_this} from "./env"
 
-export const MESSAGE_BUFFER = new ArrayBuffer(1024 * 10);
+export function wasm_plugin_exported__hello(): u64 {
+    let data = String.UTF8.encode("\"Hello, Host!\"");
+    let ptr = changetype<usize>(data);
+    __pin(ptr);
+    let len = data.byteLength as u64;
 
-export function wasm_plugin_exported__hello(): i32 {
-  return String.UTF8.encodeUnsafe(changetype<usize>("\"Hello, Host!\""), 14, changetype<usize>(MESSAGE_BUFFER)) as i32;
+    return len << 32 | ptr as u64;
 }
-
 
 function please_capitalize_this(input: String): String {
-    let len = String.UTF8.encodeUnsafe(changetype<usize>(input), input.length, changetype<usize>(MESSAGE_BUFFER)) as i32;
-    let response_len = wasm_plugin_imported__please_capitalize_this(len);
-    return String.UTF8.decode(MESSAGE_BUFFER.slice(0, response_len));
+    let data = String.UTF8.encode(input);
+    let ptr = changetype<usize>(data);
+    let len = data.byteLength;
+
+    let fat_ptr = wasm_plugin_imported__please_capitalize_this(ptr as u32, len as u32);
+    let len2 = (fat_ptr >> 32) & 0xFFFFFF;
+    let ptr2 = fat_ptr & 0xFFFFFF;
+    let result = String.UTF8.decodeUnsafe(ptr2 as usize, len2 as usize, false);
+    return result
 }
 
-export function wasm_plugin_exported__echo(len: i32): i32 {
-   let input: string = String.UTF8.decode(MESSAGE_BUFFER.slice(0, len));
-   let output = please_capitalize_this(input);
-   return String.UTF8.encodeUnsafe(changetype<usize>(output), output.length, changetype<usize>(MESSAGE_BUFFER)) as i32;
+export function wasm_plugin_exported__echo(ptr: u32, len: u32): u64 {
+    let input = String.UTF8.decodeUnsafe(ptr as usize, len as usize, false);
+    let output = please_capitalize_this(input);
+
+    let data = String.UTF8.encode(output);
+    let ptr = changetype<usize>(data);
+    __pin(ptr);
+    let len = data.byteLength as u64;
+
+    return len << 32 | ptr as u64;
 }
-export function wasm_plugin_exported__favorite_numbers(): i32 {
+
+export function wasm_plugin_exported__favorite_numbers(): u64 {
     let encoder = new JSONEncoder();
     encoder.pushArray(null);
     encoder.setInteger(null, 1);
@@ -28,5 +43,21 @@ export function wasm_plugin_exported__favorite_numbers(): i32 {
     encoder.setInteger(null, 43);
     encoder.popArray();
     let response: string = encoder.toString();
-    return String.UTF8.encodeUnsafe(changetype<usize>(response), response.length, changetype<usize>(MESSAGE_BUFFER)) as i32;
+    let encoded_response = String.UTF8.encode(response);
+    let ptr = changetype<usize>(encoded_response);
+    __pin(ptr);
+    let len = encoded_response.byteLength as u64;
+
+    return len << 32 | ptr as u64;
  }
+
+export function allocate_message_buffer(len: u32): u32 {
+    let buffer = new ArrayBuffer(len);
+    let ptr = changetype<usize>(buffer);
+    __pin(ptr);
+    return ptr as u32;
+}
+
+export function free_message_buffer(ptr: u32, _len: u32): void {
+    __unpin(ptr as usize);
+}

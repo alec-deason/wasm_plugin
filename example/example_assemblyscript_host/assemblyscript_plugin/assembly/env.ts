@@ -1,1 +1,1 @@
-export declare function wasm_plugin_imported__please_capitalize_this(len: i32): i32
+export declare function wasm_plugin_imported__please_capitalize_this(ptr: u32, len: u32): u64

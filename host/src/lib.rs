@@ -206,12 +206,7 @@ impl WasmPluginBuilder {
         ctx: C,
         value: F,
     ) -> Self {
-        let env = Env {
-            allocator: Default::default(),
-            memory: Default::default(),
-            garbage: self.garbage.clone(),
-            ctx,
-        };
+        let env = Env::new(self.garbage.clone(), ctx);
 
         if F::has_arg() {
             let f = if F::has_return() {
@@ -269,12 +264,7 @@ impl WasmPluginBuilder {
         name: impl ToString,
         value: F,
     ) -> Self {
-        let env = Env {
-            allocator: Default::default(),
-            memory: Default::default(),
-            garbage: self.garbage.clone(),
-            ctx: (),
-        };
+        let env = Env::new(self.garbage.clone(), ());
 
         if F::has_arg() {
             let f = if F::has_return() {
@@ -644,16 +634,20 @@ impl WasmPlugin {
         };
         let result = self.message_buffer()?.read_message_from_fat_pointer(ptr);
 
-        let garbage: Vec<_> = self.garbage.lock().unwrap().drain(..).collect();
+        let mut garbage: Vec<_> = self.garbage.lock().unwrap().drain(..).collect();
+
+        if FatPointer(ptr).len() > 0 {
+            garbage.push(FatPointer(ptr));
+        }
         if !garbage.is_empty() {
             let f = self
                 .instance
                 .exports
                 .get_function("free_message_buffer")
-                .unwrap_or_else(|_| panic!("Unable to find function 'free_message_buffer'"));
+                .unwrap_or_else(|_| panic!("Unable to find function 'free_message_buffer'"))
+                .native::<(u32, u32), ()>()?;
             for fat_ptr in garbage {
-                f.native::<(u32, u32), ()>()?
-                    .call(fat_ptr.ptr() as u32, fat_ptr.len() as u32)?
+                f.call(fat_ptr.ptr() as u32, fat_ptr.len() as u32)?
             }
         }
 
