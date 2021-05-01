@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest_derive/0.1.4")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest_derive/0.1.5")]
 #![deny(missing_docs)]
 
 //! This crate provides attribute macros used by [wasm_plugin_guest](https://crates.io/crates/wasm_plugin_guest)

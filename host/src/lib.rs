@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.5")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.6")]
 #![deny(missing_docs)]
 
 //! A low-ish level tool for easily hosting WASM based plugins.
@@ -75,10 +75,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use wasmer::{
-    Exports, Function, Instance, LazyInit, Memory, MemoryView, Module, Store,
-    WasmerEnv,
-};
+use wasmer::{Exports, Function, Instance, LazyInit, Memory, MemoryView, Module, Store, WasmerEnv};
 pub use wasmer::{Extern, HostFunction};
 
 #[allow(missing_docs)]

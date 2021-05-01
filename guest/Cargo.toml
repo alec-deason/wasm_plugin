@@ -1,6 +1,6 @@
 [package]
 name = "wasm_plugin_guest"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Alec Deason <wasm_plugin@tinycountry.com>"]
 edition = "2018"
 license = "MIT"
@@ -19,7 +19,7 @@ serialize_nanoserde_json = ["nanoserde"]
 
 
 [dependencies]
-wasm_plugin_guest_derive = "0.1.4"
+wasm_plugin_guest_derive = "0.1.5"
 getrandom = { version = "0.2", features = ["custom"], optional = true }
 serde = { version = "1", optional = true }
 bincode = { version = "1", optional = true }

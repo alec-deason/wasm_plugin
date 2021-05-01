@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest/0.1.4")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_guest/0.1.5")]
 #![deny(missing_docs)]
 
 //! A low-ish level tool for easily writing WASM based plugins to be hosted by

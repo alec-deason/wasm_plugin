@@ -1,6 +1,6 @@
 [package]
 name = "wasm_plugin_guest_derive"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Alec Deason <wasm_plugin@tinycountry.com>"]
 edition = "2018"
 license = "MIT"
