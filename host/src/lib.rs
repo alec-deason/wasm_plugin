@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.6")]
+#![doc(html_root_url = "https://docs.rs/wasm_plugin_host/0.1.7")]
 #![deny(missing_docs)]
 
 //! A low-ish level tool for easily hosting WASM based plugins.
@@ -15,7 +15,7 @@
 //! # use std::error::Error;
 //! #
 //! # fn main() -> Result<(), Box<dyn Error>> {
-//! let mut plugin = WasmPlugin::load("path/to/plugin.wasm")?;
+//! let mut plugin = WasmPluginBuilder::from_file("path/to/plugin.wasm")?.finish()?;
 //! #
 //! #     Ok(())
 //! # }
@@ -31,7 +31,7 @@
 //! # use std::error::Error;
 //! #
 //! # fn main() -> Result<(), Box<dyn Error>> {
-//! # let mut plugin = WasmPlugin::load("path/to/plugin.wasm")?;
+//! # let mut plugin = WasmPluginBuilder::from_file("path/to/plugin.wasm")?.finish()?;
 //! let response: ResultType = plugin.call_function("function_name")?;
 //! #
 //! #     Ok(())
@@ -46,7 +46,7 @@
 //! # use std::error::Error;
 //! #
 //! # fn main() -> Result<(), Box<dyn Error>> {
-//! # let mut plugin = WasmPlugin::load("path/to/plugin.wasm")?;
+//! # let mut plugin = WasmPluginBuilder::from_file("path/to/plugin.wasm")?.finish()?;
 //! let message = Message::default();
 //! let response: ResultType = plugin.call_function_with_argument("function_name", &message)?;
 //! #

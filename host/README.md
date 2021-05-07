@@ -15,7 +15,7 @@ Plugins should be written using [wasm_plugin_guest](https://crates.io/crates/was
 Loading a plugin is as simple as reading the .wasm file off disk.
 
 ```rust
-let mut plugin = WasmPlugin::load("path/to/plugin.wasm")?;
+let mut plugin = WasmPluginBuilder::from_file("path/to/plugin.wasm")?.finish()?;
 ```
 
 Calling functions exported by the plugin takes one of two forms. Either
