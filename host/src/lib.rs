@@ -655,7 +655,7 @@ impl WasmPlugin {
     ///
     /// Deserialization of the return value depends on the type being known
     /// at the call site.
-    pub fn call_function<ReturnType>(&mut self, fn_name: &str) -> errors::Result<ReturnType>
+    pub fn call_function<ReturnType>(&self, fn_name: &str) -> errors::Result<ReturnType>
     where
         ReturnType: Deserializable,
     {
