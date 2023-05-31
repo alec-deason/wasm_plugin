@@ -78,7 +78,7 @@ use std::{
 use wasmer::FunctionEnvMut;
 use wasmer::{
     AsStoreMut, AsStoreRef, Exports, Function, FunctionEnv, Instance, Memory, MemoryView, Module,
-    Store, StoreMut, TypedFunction,
+    Store, TypedFunction,
 };
 pub use wasmer::{Extern, HostFunction};
 
@@ -118,7 +118,7 @@ impl<C: Send + Sync + Clone + 'static> Env<C> {
         }
     }
 
-    fn message_buffer(&self, store: &mut impl AsStoreMut) -> MessageBuffer {
+    fn message_buffer(&self) -> MessageBuffer {
         unsafe {
             MessageBuffer {
                 allocator: self.allocator.as_ref().unwrap_unchecked().clone(),
@@ -236,7 +236,7 @@ impl WasmPluginBuilder {
             let f = if F::has_return() {
                 let wrapped = move |mut env: FunctionEnvMut<Env<C>>, ptr: u32, len: u32| -> u64 {
                     let (env, mut store) = env.data_and_store_mut();
-                    let mut buffer = env.message_buffer(&mut store);
+                    let mut buffer = env.message_buffer();
                     let r = value
                         .call_with_input(
                             &mut buffer,
@@ -255,7 +255,7 @@ impl WasmPluginBuilder {
             } else {
                 let wrapped = move |mut env: FunctionEnvMut<Env<C>>, ptr: u32, len: u32| {
                     let (env, mut store) = env.data_and_store_mut();
-                    let mut buffer = env.message_buffer(&mut store);
+                    let mut buffer = env.message_buffer();
                     value
                         .call_with_input(
                             &mut buffer,
@@ -275,7 +275,7 @@ impl WasmPluginBuilder {
             let f = if F::has_return() {
                 let wrapped = move |mut env: FunctionEnvMut<Env<C>>| -> u64 {
                     let (env, mut store) = env.data_and_store_mut();
-                    let mut buffer = env.message_buffer(&mut store);
+                    let mut buffer = env.message_buffer();
                     let r = value
                         .call_without_input(&mut buffer, &env.ctx, &mut store)
                         .unwrap()
@@ -288,7 +288,7 @@ impl WasmPluginBuilder {
             } else {
                 let wrapped = move |mut env: FunctionEnvMut<Env<C>>| {
                     let (env, mut store) = env.data_and_store_mut();
-                    let mut buffer = env.message_buffer(&mut store);
+                    let mut buffer = env.message_buffer();
                     value
                         .call_without_input(&mut buffer, &env.ctx, &mut store)
                         .unwrap();
@@ -315,7 +315,7 @@ impl WasmPluginBuilder {
             let f = if F::has_return() {
                 let wrapped = move |mut env: FunctionEnvMut<Env<()>>, ptr: u32, len: u32| -> u64 {
                     let (env, mut store) = env.data_and_store_mut();
-                    let mut buffer = env.message_buffer(&mut store);
+                    let mut buffer = env.message_buffer();
                     let r = value
                         .call_with_input(&mut buffer, ptr as usize, len as usize, &mut store)
                         .unwrap()
@@ -328,7 +328,7 @@ impl WasmPluginBuilder {
             } else {
                 let wrapped = move |mut env: FunctionEnvMut<Env<()>>, ptr: u32, len: u32| {
                     let (env, mut store) = env.data_and_store_mut();
-                    let mut buffer = env.message_buffer(&mut store);
+                    let mut buffer = env.message_buffer();
                     value
                         .call_with_input(&mut buffer, ptr as usize, len as usize, &mut store)
                         .unwrap();
@@ -342,7 +342,7 @@ impl WasmPluginBuilder {
             let f = if F::has_return() {
                 let wrapped = move |mut env: FunctionEnvMut<Env<()>>| -> u64 {
                     let (env, mut store) = env.data_and_store_mut();
-                    let mut buffer = env.message_buffer(&mut store);
+                    let mut buffer = env.message_buffer();
                     let r = value
                         .call_without_input(&mut buffer, &mut store)
                         .unwrap()
@@ -355,7 +355,7 @@ impl WasmPluginBuilder {
             } else {
                 let wrapped = move |mut env: FunctionEnvMut<Env<()>>| {
                     let (env, mut store) = env.data_and_store_mut();
-                    let mut buffer = env.message_buffer(&mut store);
+                    let mut buffer = env.message_buffer();
                     value.call_without_input(&mut buffer, &mut store).unwrap();
                     env.garbage.lock().unwrap().extend(buffer.garbage.drain(..));
                 };
@@ -548,7 +548,7 @@ where
     fn call_without_input(
         &self,
         _message_buffer: &mut MessageBuffer,
-        store: &mut impl AsStoreMut,
+        _store: &mut impl AsStoreMut,
     ) -> errors::Result<Option<FatPointer>> {
         unimplemented!("Requires argument")
     }
