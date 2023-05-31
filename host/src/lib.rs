@@ -133,6 +133,7 @@ impl<C: Send + Sync + Clone + 'static> Env<C> {
     }
 }
 
+/// Used in [`WasmPluginBuilder`] to store a `Vec` of `FunctionEnv<Env<C>>`s with different `C`s
 trait EnvExport {
     fn update_exports(&mut self, exports: &Exports, store: &mut Store);
 }
@@ -157,6 +158,7 @@ pub struct WasmPluginBuilder {
     env: Exports,
     // TODO: Can we do this without the lock?
     garbage: Arc<Mutex<Vec<FatPointer>>>,
+    // need to save these to update the allocator and memory exports in `Self::finish`
     envs: Vec<Box<dyn EnvExport>>,
 }
 impl WasmPluginBuilder {
