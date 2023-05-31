@@ -121,7 +121,7 @@ impl<C: Send + Sync + Clone + 'static> Env<C> {
     fn message_buffer(&self) -> MessageBuffer {
         unsafe {
             MessageBuffer {
-                allocator: self.allocator.as_ref().unwrap_unchecked().clone(),
+                allocator: OwnedOrRef::Ref(self.allocator.as_ref().unwrap_unchecked()),
                 memory: self.memory.as_ref().unwrap_unchecked(),
                 garbage: vec![],
             }
@@ -607,10 +607,24 @@ struct WasmPluginInner {
     garbage: Arc<Mutex<Vec<FatPointer>>>,
 }
 
+enum OwnedOrRef<'a, T> {
+    Owned(T),
+    Ref(&'a T),
+}
+
+impl<T> AsRef<T> for OwnedOrRef<'_, T> {
+    fn as_ref(&self) -> &T {
+        match self {
+            OwnedOrRef::Owned(v) => v,
+            OwnedOrRef::Ref(r) => r,
+        }
+    }
+}
+
 #[doc(hidden)]
 pub struct MessageBuffer<'a> {
     memory: &'a Memory,
-    allocator: TypedFunction<u32, u32>,
+    allocator: OwnedOrRef<'a, TypedFunction<u32, u32>>,
     garbage: Vec<FatPointer>,
 }
 
@@ -618,12 +632,12 @@ impl<'a> MessageBuffer<'a> {
     fn write_message(&mut self, message: &[u8], store: &mut impl AsStoreMut) -> FatPointer {
         let len = message.len() as u32;
 
-        let ptr = self.allocator.call(store, len as u32).unwrap();
+        let ptr = self.allocator.as_ref().call(store, len as u32).unwrap();
 
         unsafe {
             let mem = self.memory.view(store);
             let data = mem.data_unchecked_mut();
-            data[ptr as usize..ptr as usize + len as usize].copy_from_slice(&message);
+            data[ptr as usize..ptr as usize + len as usize].copy_from_slice(message);
         }
 
         let mut fat_ptr = FatPointer(0);
@@ -661,11 +675,12 @@ impl WasmPluginInner {
     fn message_buffer(&self, store: &impl AsStoreRef) -> errors::Result<MessageBuffer> {
         Ok(MessageBuffer {
             memory: self.instance.exports.get_memory("memory")?,
-            allocator: self
-                .instance
-                .exports
-                .get::<Function>("allocate_message_buffer")?
-                .typed(store)?,
+            allocator: OwnedOrRef::Owned(
+                self.instance
+                    .exports
+                    .get::<Function>("allocate_message_buffer")?
+                    .typed(store)?,
+            ),
             garbage: vec![],
         })
     }
@@ -759,9 +774,9 @@ impl WasmPlugin {
 
 #[cfg(feature = "inject_getrandom")]
 fn getrandom_shim(mut env: FunctionEnvMut<Env<()>>, ptr: u32, len: u32) {
-    let (data, mut store) = env.data_and_store_mut();
+    let (data, store) = env.data_and_store_mut();
     if let Some(memory) = data.memory_ref() {
-        let view: MemoryView = memory.view(&mut store);
+        let view: MemoryView = memory.view(&store);
         let mut buff: Vec<u8> = vec![0; len as usize];
         getrandom::getrandom(&mut buff).unwrap();
         for (dst, src) in unsafe { view.data_unchecked_mut() }
