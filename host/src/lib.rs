@@ -75,9 +75,12 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use wasmer::{Exports, Function, Instance, Memory, MemoryView, Module, Store, TypedFunction, FunctionEnv, AsStoreMut, StoreMut, AsStoreRef};
-pub use wasmer::{Extern, HostFunction};
 use wasmer::FunctionEnvMut;
+use wasmer::{
+    AsStoreMut, AsStoreRef, Exports, Function, FunctionEnv, Instance, Memory, MemoryView, Module,
+    Store, StoreMut, TypedFunction,
+};
+pub use wasmer::{Extern, HostFunction};
 
 #[allow(missing_docs)]
 pub mod errors;
@@ -138,7 +141,11 @@ impl<C: Send + Sync + Clone + 'static> EnvExport for FunctionEnv<Env<C>> {
     fn update_exports(&mut self, exports: &Exports, store: &mut Store) {
         let mut fenvm = self.clone().into_mut(store);
         let (data, store) = fenvm.data_and_store_mut();
-        data.allocator = Some(exports.get_typed_function(&store, "allocate_message_buffer").unwrap());
+        data.allocator = Some(
+            exports
+                .get_typed_function(&store, "allocate_message_buffer")
+                .unwrap(),
+        );
         data.memory = Some(exports.get_memory("memory").unwrap().clone());
     }
 }
@@ -178,11 +185,7 @@ impl WasmPluginBuilder {
             let fenv = FunctionEnv::new(&mut store, menv);
             env.insert(
                 "__getrandom",
-                Function::new_typed_with_env(
-                    &mut store,
-                    &fenv,
-                    getrandom_shim,
-                ),
+                Function::new_typed_with_env(&mut store, &fenv, getrandom_shim),
             );
             envs.push(Box::new(fenv) as _);
         }
@@ -235,7 +238,13 @@ impl WasmPluginBuilder {
                     let (env, mut store) = env.data_and_store_mut();
                     let mut buffer = env.message_buffer(&mut store);
                     let r = value
-                        .call_with_input(&mut buffer, ptr as usize, len as usize, &env.ctx, &mut store)
+                        .call_with_input(
+                            &mut buffer,
+                            ptr as usize,
+                            len as usize,
+                            &env.ctx,
+                            &mut store,
+                        )
                         .unwrap()
                         .map(|p| p.0)
                         .unwrap_or(0);
@@ -248,7 +257,13 @@ impl WasmPluginBuilder {
                     let (env, mut store) = env.data_and_store_mut();
                     let mut buffer = env.message_buffer(&mut store);
                     value
-                        .call_with_input(&mut buffer, ptr as usize, len as usize, &env.ctx, &mut store)
+                        .call_with_input(
+                            &mut buffer,
+                            ptr as usize,
+                            len as usize,
+                            &env.ctx,
+                            &mut store,
+                        )
                         .unwrap();
                     env.garbage.lock().unwrap().extend(buffer.garbage.drain(..));
                 };
@@ -274,7 +289,9 @@ impl WasmPluginBuilder {
                 let wrapped = move |mut env: FunctionEnvMut<Env<C>>| {
                     let (env, mut store) = env.data_and_store_mut();
                     let mut buffer = env.message_buffer(&mut store);
-                    value.call_without_input(&mut buffer, &env.ctx, &mut store).unwrap();
+                    value
+                        .call_without_input(&mut buffer, &env.ctx, &mut store)
+                        .unwrap();
                     env.garbage.lock().unwrap().extend(buffer.garbage.drain(..));
                 };
                 Function::new_typed_with_env(&mut self.store, &env, wrapped)
@@ -601,10 +618,7 @@ impl<'a> MessageBuffer<'a> {
     fn write_message(&mut self, message: &[u8], store: &mut impl AsStoreMut) -> FatPointer {
         let len = message.len() as u32;
 
-        let ptr = self
-            .allocator
-            .call(store, len as u32)
-            .unwrap();
+        let ptr = self.allocator.call(store, len as u32).unwrap();
 
         unsafe {
             let mem = self.memory.view(store);
@@ -669,12 +683,17 @@ impl WasmPluginInner {
             .unwrap_or_else(|_| panic!("Unable to find function {}", fn_name));
 
         let ptr = if let Some(fat_ptr) = input_buffer {
-            f.typed::<(u32, u32), u64>(&store)?
-                .call(&mut store, fat_ptr.ptr() as u32, fat_ptr.len() as u32)?
+            f.typed::<(u32, u32), u64>(&store)?.call(
+                &mut store,
+                fat_ptr.ptr() as u32,
+                fat_ptr.len() as u32,
+            )?
         } else {
             f.typed::<(), u64>(&store)?.call(&mut store)?
         };
-        let result = self.message_buffer(&store)?.read_message_from_fat_pointer(ptr, &store);
+        let result = self
+            .message_buffer(&store)?
+            .read_message_from_fat_pointer(ptr, &store);
 
         let mut garbage: Vec<_> = self.garbage.lock().unwrap().drain(..).collect();
 
@@ -702,14 +721,13 @@ impl WasmPlugin {
     ///
     /// Deserialization of the return value depends on the type being known
     /// at the call site.
-    pub fn call_function<ReturnType>(
-        &mut self,
-        fn_name: &str,
-    ) -> errors::Result<ReturnType>
+    pub fn call_function<ReturnType>(&mut self, fn_name: &str) -> errors::Result<ReturnType>
     where
         ReturnType: Deserializable,
     {
-        let buff = self.inner.call_function_raw(fn_name, None, &mut self.store)?;
+        let buff = self
+            .inner
+            .call_function_raw(fn_name, None, &mut self.store)?;
         ReturnType::deserialize(&buff)
     }
 
@@ -731,7 +749,9 @@ impl WasmPlugin {
         let mut buffer = self.inner.message_buffer(&self.store)?;
         let ptr = buffer.write_message(&message, &mut self.store);
 
-        let buff = self.inner.call_function_raw(fn_name, Some(ptr), &mut self.store)?;
+        let buff = self
+            .inner
+            .call_function_raw(fn_name, Some(ptr), &mut self.store)?;
         drop(buffer);
         ReturnType::deserialize(&buff)
     }
@@ -744,7 +764,8 @@ fn getrandom_shim(mut env: FunctionEnvMut<Env<()>>, ptr: u32, len: u32) {
         let view: MemoryView = memory.view(&mut store);
         let mut buff: Vec<u8> = vec![0; len as usize];
         getrandom::getrandom(&mut buff).unwrap();
-        for (dst, src) in unsafe { view.data_unchecked_mut() }[ptr as usize..ptr as usize + len as usize]
+        for (dst, src) in unsafe { view.data_unchecked_mut() }
+            [ptr as usize..ptr as usize + len as usize]
             .iter_mut()
             .zip(buff)
         {
