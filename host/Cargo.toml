@@ -18,7 +18,7 @@ serialize_json = ["serde_json", "serde"]
 serialize_nanoserde_json = ["nanoserde"]
 
 [dependencies]
-wasmer = "1"
+wasmer = "3"
 getrandom = { version = "0.2", optional = true }
 serde = { version = "1", optional = true }
 bincode = { version = "1", optional = true }
