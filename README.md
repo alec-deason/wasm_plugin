@@ -1,3 +1,7 @@
+#OBSOLETE#
+These crates are no longer maintained and the use case is better served by the [WebAssembly Component specification](https://component-model.bytecodealliance.org/language-support/rust.html).
+
+
 A low-ish level tool for easily writing and hosting WASM based plugins.
 
 The goal of wasm_plugin is to make communicating across the host-plugin

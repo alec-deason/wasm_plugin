@@ -1,3 +1,7 @@
+#OBSOLETE#
+These crates are no longer maintained and the use case is better served by the [WebAssembly Component specification](https://component-model.bytecodealliance.org/language-support/rust.html).
+
+
 [![Crates.io](https://img.shields.io/crates/v/wasm_plugin_guest.svg)](https://crates.io/crates/wasm_plugin_guest)
 [![Docs.rs](https://docs.rs/wasm_plugin_guest/badge.svg)](https://docs.rs/wasm_plugin_guest)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
